@@ -72,6 +72,8 @@ func reason(r config.Rule, f Facts) string {
 	switch {
 	case r.When.ExplainFailed != nil:
 		return "no explanation available (model call failed) - a human diagnoses it"
+	case r.When.Kind == "sensor_fault":
+		return "sensor fault: the sensor itself looks broken, so a ticket goes to the equipment owner (no model call)"
 	case r.When.Kind != "":
 		return fmt.Sprintf("kind=%s", f.Kind)
 	case r.When.ConfidenceBelow != nil:

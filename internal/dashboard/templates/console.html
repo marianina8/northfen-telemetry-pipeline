@@ -1,0 +1,63 @@
+{{template "head" .Page}}
+<div id="console" data-run="{{.RunID}}" data-model="{{.Explain}}">
+
+<section class="panel runbar">
+  <div class="runbar-row">
+    <label class="grow">Scenario
+      <select id="scenario" disabled><option>Loading scenarios…</option></select>
+    </label>
+    <button id="run-btn" type="button" disabled>Run scenario ▶</button>
+  </div>
+  <p id="scenario-desc" class="muted desc"></p>
+  <p id="run-error" class="error-text" hidden></p>
+</section>
+
+<section class="pipeline" aria-label="Pipeline stages">
+  <div class="stage" id="st-stream"><span class="n">1</span><b>Stream</b><em data-k="readings">0</em><small>readings via Kinesis</small></div>
+  <div class="stage" id="st-detect"><span class="n">2</span><b>Detect</b><em data-k="windows">0</em><small>windows scored · <span data-k="windows_flagged">0</span> flagged<br>EWMA / z-score · no model</small></div>
+  <div class="stage" id="st-explain"><span class="n">3</span><b>Explain</b><em data-k="model_calls">0</em><small>model calls · only on flags<br><span class="model">{{.Explain}}</span></small></div>
+  <div class="stage" id="st-dispatch"><span class="n">4</span><b>Dispatch</b><em data-k="actions">0</em><small>actions · fixed severity × confidence table</small></div>
+  <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+  <p id="status-line" class="status-line" role="status" aria-live="polite">Pick a scenario and run it.</p>
+</section>
+
+<div class="layout">
+  <section class="charts" aria-labelledby="tool-title">
+    <div class="section-head">
+      <h2 id="tool-title">Live sensors</h2>
+      <ul class="legend" aria-label="Chart legend">
+        <li><i class="lg-line"></i>reading</li>
+        <li><i class="lg-band"></i>learned normal (±3σ)</li>
+        <li><i class="lg-dot"></i>flagged reading</li>
+        <li><i class="lg-strip"></i>scored windows: <span class="sw sw-normal"></span>normal <span class="sw sw-flagged"></span>flagged <span class="sw sw-fault"></span>sensor fault <span class="sw sw-warmup"></span>learning</li>
+      </ul>
+    </div>
+    <div id="charts">
+      <div class="panel empty">
+        <h3>What you'll see</h3>
+        <ol>
+          <li><b>Readings stream in</b> tick by tick, tagged with your sandbox's session.</li>
+          <li>For each sensor, the first 20 readings <b>learn that tool's normal</b> (mean and noise). After that, every reading gets a z-score and every 10-reading window is scored and stored. This is plain statistics, with no model involved.</li>
+          <li>When a window crosses a threshold, the tool's sensors are <b>grouped into one alert</b>. After a short settle, <b>one bounded model call</b> explains the likely cause across all the sensors and the tool's maintenance history.</li>
+          <li>A <b>fixed table</b> turns severity and confidence into log, ticket or page. Explanations the model isn't sure about go to a human. You can acknowledge, dismiss or escalate.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <aside class="feed" aria-labelledby="feed-title">
+    <div class="section-head"><h2 id="feed-title">Anomaly feed</h2></div>
+    <div id="alerts"><p class="muted small">Nothing flagged yet. Normal scenarios should stay empty here, and that's the false-positive check.</p></div>
+    <label class="small name-label">Acting as <input id="actor" value="engineer" maxlength="40" autocomplete="off"></label>
+  </aside>
+</div>
+
+<section class="runs">
+  <h2>Runs in this sandbox <span id="runs-left" class="muted small"></span></h2>
+  <div id="runs" class="run-list"><p class="muted small">No runs yet.</p></div>
+</section>
+
+<div id="tip" class="tip" role="tooltip" hidden></div>
+</div>
+<script src="{{.Page.Base}}/static/app.js" defer></script>
+{{template "foot" .Page}}

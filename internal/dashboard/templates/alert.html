@@ -1,0 +1,91 @@
+{{template "head" .Page}}
+{{$a := .Alert}}
+<p class="crumb"><a href="{{.Page.Base}}/?run={{$a.RunID}}">← Back to the run</a></p>
+<section class="panel alert-head">
+  <div>
+    <h1>{{$a.ID}} <span class="muted">· {{.Tool}} ({{$a.EquipmentID}})</span></h1>
+    <p class="muted">{{if .Run.Title}}{{.Run.Title}} · {{end}}{{human $a.Kind}} · first flag at tick {{$a.FirstTick}} · max |z| {{f2 $a.MaxAbsZ}}</p>
+  </div>
+  <div class="chips">
+    {{if .Summary.Severity}}<span class="chip sev-{{.Summary.Severity}}">{{upper .Summary.Severity}} severity</span>{{end}}
+    {{if .Summary.Action}}<span class="chip act-{{.Summary.Action}}">{{human .Summary.Action}}</span>{{end}}
+    <span class="chip st-{{$a.Status}}">{{$a.Status}}</span>
+  </div>
+</section>
+
+<div class="grid2">
+<section class="panel">
+  <h2>1 · Detector <span class="muted small">deterministic statistics, no model</span></h2>
+  <table>
+    <thead><tr><th>Sensor</th><th>Rule</th><th>Tick</th><th>z</th><th>Window</th></tr></thead>
+    <tbody>{{range $a.Flags}}<tr><td>{{.SensorID}} <span class="muted small">{{human .SensorType}}</span></td><td>{{.Rule}}</td><td>{{.Tick}}</td><td>{{f2 .Z}}</td><td class="mono small">{{.WindowID}}</td></tr>{{end}}</tbody>
+  </table>
+  {{if gt (len $a.Flags) 1}}<p class="small">{{len $a.Flags}} sensors on the same tool flagged within the grouping window, so they're treated as <b>one incident</b> with one diagnosis and one page.</p>{{end}}
+</section>
+
+<section class="panel">
+  <h2>2 · Explanation <span class="muted small">one bounded model call</span></h2>
+  {{if eq (printf "%s" $a.Explain) "skipped"}}
+    <p><b>Skipped by design.</b> This is a sensor fault (the sensor itself stopped reporting or froze), so there's no process behaviour to diagnose. It goes straight to a ticket without a model call.</p>
+  {{else if eq (printf "%s" $a.Explain) "pending"}}
+    <p class="muted">Waiting for correlated sensors to settle before the one model call.</p>
+  {{else if eq (printf "%s" $a.Explain) "failed"}}
+    <p><b>No explanation:</b> {{$a.ExplainErr}}. The dispatch table sends it to a human.</p>
+  {{else}}{{with $a.Explanation}}
+    <p class="explanation">{{.Explanation}}</p>
+    <p><span class="muted small">Likely causes (ranked):</span> {{range .LikelyCauses}}<span class="chip">{{human .}}</span> {{end}}</p>
+    <p class="muted small">Check first:</p>
+    <ol class="checks">{{range .RecommendedChecks}}<li>{{.}}</li>{{end}}</ol>
+    <p class="small">Severity <b>{{.Severity}}</b> · confidence <b>{{f2 .Confidence}}</b> · <span class="muted">{{.Model}}</span></p>
+  {{end}}{{end}}
+</section>
+
+<section class="panel">
+  <h2>3 · Dispatch <span class="muted small">plain code, not the model</span></h2>
+  {{with $a.Decision}}
+    <p><span class="chip act-{{.Action}}">{{human .Action}}</span> via rule <code>{{.Rule}}</code></p>
+    <p class="small">{{.Reason}}</p>
+  {{end}}
+  <ul class="plain">{{range $a.Actions}}<li>{{.Detail}}{{if .Ref}} <span class="mono small">{{.Ref}}</span>{{end}}</li>{{end}}</ul>
+</section>
+
+<section class="panel" id="ack-panel" data-alert="{{$a.ID}}">
+  <h2>4 · Human</h2>
+  <p>Status: <b>{{$a.Status}}</b></p>
+  {{if ne (printf "%s" $a.Status) "dismissed"}}
+  <div class="ack stack">
+    <label class="small">Acting as <input id="actor" value="engineer" maxlength="40"></label>
+    <label class="small">Note (required to dismiss) <input id="ack-note" maxlength="500" placeholder="e.g. PM already scheduled for tonight"></label>
+    <div class="btns">
+      <button type="button" data-ack="acknowledge">Acknowledge</button>
+      <button type="button" data-ack="escalate" class="secondary">Escalate</button>
+      <button type="button" data-ack="dismiss" class="secondary">Dismiss</button>
+    </div>
+    <p id="ack-error" class="error-text" hidden></p>
+  </div>
+  {{end}}
+</section>
+</div>
+
+<section class="panel">
+  <h2>Audit trail</h2>
+  <table class="events">
+    <thead><tr><th>When</th><th>Actor</th><th>Event</th><th>Detail</th></tr></thead>
+    <tbody>{{range $a.Events}}<tr><td class="mono small nowrap">{{when .At}}</td><td class="nowrap">{{.Actor}}</td><td class="nowrap">{{.Type}}</td><td>{{.Detail}}</td></tr>{{end}}</tbody>
+  </table>
+</section>
+
+{{if $a.Input}}
+<details class="panel">
+  <summary><b>Exactly what the model was shown</b> <span class="muted small">(stored on the alert for audit)</span></summary>
+  <pre class="mono small">{{json $a.Input}}</pre>
+</details>
+{{end}}
+{{if $a.Explanation}}{{if $a.Explanation.Raw}}
+<details class="panel">
+  <summary><b>Raw model reply</b></summary>
+  <pre class="mono small">{{$a.Explanation.Raw}}</pre>
+</details>
+{{end}}{{end}}
+<script src="{{.Page.Base}}/static/app.js" defer></script>
+{{template "foot" .Page}}

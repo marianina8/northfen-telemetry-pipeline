@@ -1,0 +1,28 @@
+{{define "head"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · {{.Company}}</title>
+<link rel="stylesheet" href="{{.Base}}/static/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 11 L5 7 L8 9 L11 3 L15 5' fill='none' stroke='%232a78d6' stroke-width='2'/%3E%3C/svg%3E">
+</head>
+<body data-base="{{.Base}}">
+<header class="top">
+  <a href="{{.Base}}/" class="brand">{{.Company}} <span>· Equipment anomaly console</span></a>
+  <span class="sub">Stream → Detect → Explain → Dispatch · synthetic data{{if .SiteURL}} · <a href="{{.SiteURL}}" class="sitelink">About this demo ↗</a>{{end}}</span>
+  {{if .Nav}}<nav>
+    <a href="{{.Base}}/">Console</a>
+    {{if .Auth}}<form method="post" action="{{.Base}}/logout" class="inline"><button type="submit" class="linkish">Log out</button></form>{{end}}
+  </nav>{{end}}
+</header>
+{{if and .Sandbox .Nav}}<div class="sandbox-bar">🔒 Your private sandbox. Only you can see these runs, and everything here is deleted automatically after {{.SandboxTTL}}. Signing in again starts a fresh one.</div>{{end}}
+<main>
+{{end}}
+
+{{define "foot"}}
+</main>
+<footer class="foot">{{.Fab}} · all sensor data is synthetic{{if .Mode}} · {{.Mode}}{{end}}</footer>
+</body>
+</html>
+{{end}}

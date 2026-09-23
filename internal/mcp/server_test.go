@@ -141,9 +141,8 @@ func TestSessionScoped(t *testing.T) {
 	s, _ := newServer(t, "simulate")
 	tool(t, s, "simulate", map[string]any{"scenario": "05"})
 	id := tool(t, s, "feed", nil).Result.Struct["alerts"].([]any)[0].(map[string]any)["id"].(string)
-	other := *s
-	other.Session = "someone-else"
-	if r := tool(t, &other, "status", map[string]any{"id": id}); !r.Result.IsError {
+	other := &mcp.Server{Svc: s.Svc, Session: "someone-else"}
+	if r := tool(t, other, "status", map[string]any{"id": id}); !r.Result.IsError {
 		t.Fatal("a server bound to another session must not read this alert")
 	}
 }

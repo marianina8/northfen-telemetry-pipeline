@@ -1,0 +1,12 @@
+{{template "head" .Page}}
+<section class="panel login">
+  <h1>Sign in</h1>
+  <p class="muted">This demo is password-protected. Every sign-in gets its own private, empty sandbox.</p>
+  <form method="post" action="{{.Page.Base}}/login" class="stack">
+    <input type="hidden" name="next" value="{{.Next}}">
+    <label>Password <input type="password" name="password" autocomplete="current-password" autofocus required></label>
+    {{if .Error}}<p class="error-text">{{.Error}}</p>{{end}}
+    <button type="submit">Open the console</button>
+  </form>
+</section>
+{{template "foot" .Page}}
