@@ -1,0 +1,9 @@
+name: cvd04-normal
+title: Normal operation - CVD Chamber 4
+category: baseline
+description: >
+  CVD Chamber 4 running a standard deposition recipe. Heater, pressure, RF
+  and particle counts all nominal. Nothing should flag.
+equipment_id: CVD-04
+ticks: 120
+seed: 119

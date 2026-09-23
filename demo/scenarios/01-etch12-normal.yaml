@@ -1,0 +1,9 @@
+name: etch12-normal
+title: Normal operation - Etch Tool 12
+category: baseline
+description: >
+  A routine run on Etch Tool 12 with every sensor at its usual level and
+  usual noise. Nothing should flag - this is the false-positive check.
+equipment_id: ETCH-12
+ticks: 120
+seed: 127

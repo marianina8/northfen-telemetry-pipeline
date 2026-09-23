@@ -1,0 +1,71 @@
+# Synthetic equipment catalog for Northfen Semiconductor (fictional).
+# Tool names, sensors, spec limits and history are invented for the demo.
+#
+#   base / noise   nominal value and noise (std) used by the simulator
+#   decimals       how the simulated sensor reports (rounding)
+#   spec           fixed alarm limits from the tool's spec sheet. Only the
+#                  naive comparison in compare/ uses these; the real detector
+#                  learns each tool's own normal instead.
+#   history        recent maintenance / incidents. Seeded into the state store
+#                  and shown to the explain step. days_ago keeps it recent.
+
+equipment:
+  - id: ETCH-12
+    name: Etch Tool 12
+    tool_type: plasma_etch
+    line: Line 3
+    sensors:
+      - { id: rf_fwd_power,     type: rf_power,         unit: W,          base: 1500.0, noise: 4.0,  decimals: 1, spec: { lo: 1480.0, hi: 1520.0 } }
+      - { id: chamber_pressure, type: chamber_pressure, unit: mTorr,      base: 30.0,   noise: 0.15, decimals: 3, spec: { lo: 29.0,   hi: 32.0 } }
+      - { id: esc_temp,         type: temperature,      unit: C,          base: 60.0,   noise: 0.2,  decimals: 2, spec: { lo: 58.5,   hi: 61.5 } }
+      - { id: particles,        type: particle_count,   unit: counts/min, base: 12.0,   noise: 2.0,  decimals: 0, spec: { lo: 0.0,    hi: 30.0 } }
+    history:
+      - { days_ago: 2,  kind: maintenance, summary: "Wet clean and chamber seasoning after 1,800 RF hours." }
+      - { days_ago: 6,  kind: change,      summary: "Throttle valve controller firmware updated (vendor bulletin)." }
+      - { days_ago: 11, kind: incident,    summary: "Brief pressure excursion traced to a pinched foreline; hose rerouted." }
+      - { days_ago: 19, kind: maintenance, summary: "Focus ring replaced (end of life)." }
+      - { days_ago: 34, kind: maintenance, summary: "RF match network capacitor inspection - within tolerance." }
+
+  - id: CVD-04
+    name: CVD Chamber 4
+    tool_type: pecvd
+    line: Line 3
+    sensors:
+      - { id: heater_temp,      type: temperature,      unit: C,          base: 400.0,  noise: 0.5,  decimals: 2, spec: { lo: 397.0, hi: 403.0 } }
+      - { id: chamber_pressure, type: chamber_pressure, unit: Torr,       base: 2.5,    noise: 0.01, decimals: 4, spec: { lo: 2.4,   hi: 2.6 } }
+      - { id: rf_power,         type: rf_power,         unit: W,          base: 800.0,  noise: 3.0,  decimals: 1, spec: { lo: 785.0, hi: 815.0 } }
+      - { id: particles,        type: particle_count,   unit: counts/min, base: 8.0,    noise: 1.5,  decimals: 0, spec: { lo: 0.0,   hi: 25.0 } }
+    history:
+      - { days_ago: 1,  kind: change,      summary: "New line-4 operators certified on this chamber this week (capacity ramp)." }
+      - { days_ago: 4,  kind: maintenance, summary: "Showerhead swapped; chamber remote-plasma cleaned." }
+      - { days_ago: 9,  kind: incident,    summary: "Particle adders on two monitor wafers; resolved after extra clean cycle." }
+      - { days_ago: 21, kind: maintenance, summary: "Heater zone thermocouple recalibrated." }
+      - { days_ago: 40, kind: maintenance, summary: "Quarterly PM completed, no findings." }
+
+  - id: CMP-07
+    name: CMP Polisher 7
+    tool_type: cmp
+    line: Line 4 (new)
+    sensors:
+      - { id: spindle_vib,   type: vibration_rms, unit: mm/s, base: 1.2,  noise: 0.04, decimals: 3, spec: { lo: 0.0,  hi: 1.45 } }
+      - { id: head_vib,      type: vibration_rms, unit: mm/s, base: 0.8,  noise: 0.03, decimals: 3, spec: { lo: 0.0,  hi: 1.1 } }
+      - { id: pad_temp,      type: temperature,   unit: C,    base: 45.0, noise: 0.3,  decimals: 2, spec: { lo: 40.0, hi: 50.0 } }
+    history:
+      - { days_ago: 3,  kind: maintenance, summary: "Pad conditioner disk replaced; break-in recipe run." }
+      - { days_ago: 8,  kind: change,      summary: "Tool released to production on new Line 4 (capacity expansion)." }
+      - { days_ago: 14, kind: incident,    summary: "Slurry flow alarm; filter changed." }
+      - { days_ago: 26, kind: maintenance, summary: "Spindle bearing grease interval extended per vendor guidance." }
+
+  - id: IMP-02
+    name: Ion Implanter 2
+    tool_type: ion_implant
+    line: Line 3
+    sensors:
+      - { id: beamline_vacuum, type: chamber_pressure, unit: uTorr,      base: 2.0,  noise: 0.05, decimals: 3, spec: { lo: 0.0,  hi: 3.0 } }
+      - { id: platen_temp,     type: temperature,      unit: C,          base: 25.0, noise: 0.2,  decimals: 2, spec: { lo: 22.0, hi: 28.0 } }
+      - { id: cryo_vib,        type: vibration_rms,    unit: mm/s,       base: 0.6,  noise: 0.03, decimals: 3, spec: { lo: 0.0,  hi: 1.0 } }
+      - { id: particles,       type: particle_count,   unit: counts/min, base: 5.0,  noise: 1.2,  decimals: 0, spec: { lo: 0.0,  hi: 20.0 } }
+    history:
+      - { days_ago: 5,  kind: maintenance, summary: "Cryopump regeneration completed." }
+      - { days_ago: 12, kind: incident,    summary: "Beamline vacuum gauge read erratically for one shift; reseated connector." }
+      - { days_ago: 30, kind: maintenance, summary: "Source filament replaced." }

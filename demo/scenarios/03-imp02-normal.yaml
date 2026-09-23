@@ -1,0 +1,9 @@
+name: imp02-normal
+title: Normal operation - Ion Implanter 2
+category: baseline
+description: >
+  Ion Implanter 2 with a healthy beamline vacuum and cryopump. Nothing
+  should flag.
+equipment_id: IMP-02
+ticks: 120
+seed: 127

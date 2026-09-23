@@ -1,0 +1,14 @@
+name: cvd04-particle-spike
+title: Sudden particle burst - CVD Chamber 4
+category: spike
+description: >
+  Particle counts on CVD Chamber 4 jump from about 8 to about 28 per minute
+  for four readings at tick 70 (a flaking event), with every other sensor
+  normal. Should flag immediately (spike rule); higher severity.
+equipment_id: CVD-04
+ticks: 120
+seed: 505
+sensors:
+  particles:
+    patterns:
+      - { type: spike, at: 70, magnitude: 20, duration: 4 }

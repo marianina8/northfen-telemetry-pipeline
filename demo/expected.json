@@ -1,0 +1,80 @@
+{
+  "_about": "Intended outcome for every scenario in demo/scenarios. 'alerts' is the DETECTION outcome (deterministic statistics, asserted exactly by internal/pipeline/scenarios_test.go - no model involved). 'intended_severity' is the band a good diagnosis should land in (checked for Bedrock by `go run ./compare -bedrock`). 'mock_action' is what the offline mock explainer + the dispatch table produce, asserted by the tests. Sensor faults never reach a model: their action comes straight from the dispatch table.",
+  "scenarios": {
+    "01-etch12-normal": {
+      "should_flag": false,
+      "alerts": [],
+      "why": "Baseline: every sensor at its usual level and noise. False-positive check."
+    },
+    "02-cvd04-normal": {
+      "should_flag": false,
+      "alerts": [],
+      "why": "Baseline on a different tool type."
+    },
+    "03-imp02-normal": {
+      "should_flag": false,
+      "alerts": [],
+      "why": "Baseline on a third tool type."
+    },
+    "04-etch12-pressure-gradual-drift": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "anomaly", "equipment_id": "ETCH-12", "sensors": ["chamber_pressure"], "rules": ["drift"] }
+      ],
+      "intended_severity": ["low", "medium"],
+      "mock_action": "log_only",
+      "why": "Slow creep: no single reading is alarming and it never crosses the spec-sheet limit. Caught because the EWMA baseline moves 4 sigma away from the warm-up reference."
+    },
+    "05-cvd04-particle-spike": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "anomaly", "equipment_id": "CVD-04", "sensors": ["particles"], "rules": ["spike"] }
+      ],
+      "intended_severity": ["high"],
+      "mock_action": "page_oncall",
+      "why": "One reading at ~15 sigma: the spike rule fires immediately."
+    },
+    "06-cmp07-noisy-within-bounds": {
+      "should_flag": false,
+      "alerts": [],
+      "why": "Three times the usual noise but no trend or shift. The detector learns this tool's own noise; a fixed spec limit false-alarms here (see compare/)."
+    },
+    "07-imp02-vacuum-gauge-stuck": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "sensor_fault", "equipment_id": "IMP-02", "sensors": ["beamline_vacuum"], "rules": ["stuck"] }
+      ],
+      "intended_severity": [],
+      "mock_action": "open_ticket",
+      "why": "The value looks normal but never changes: a real analog gauge always wiggles. Sensor fault -> ticket, no model call."
+    },
+    "08-etch12-temp-dropout": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "sensor_fault", "equipment_id": "ETCH-12", "sensors": ["esc_temp"], "rules": ["dropout"] }
+      ],
+      "intended_severity": [],
+      "mock_action": "open_ticket",
+      "why": "Three missing readings in a row. Missing data is neither zero nor normal. Sensor fault -> ticket, no model call."
+    },
+    "09-cvd04-threshold-boundary": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "anomaly", "equipment_id": "CVD-04", "sensors": ["heater_temp"], "rules": ["sustained"] }
+      ],
+      "intended_severity": ["low", "medium"],
+      "mock_action": "page_oncall",
+      "why": "heater_temp reads z = 3.000 three times (ON the >= 3.0 cutoff: flags). rf_power reads 3.000 only twice then 2.997 three times: never flags. The evidence is weak, so the explanation is low-confidence and the dispatch table sends it to a human rather than dismissing it."
+    },
+    "10-cmp07-correlated-drift": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "anomaly", "equipment_id": "CMP-07", "sensors": ["head_vib", "pad_temp", "spindle_vib"], "rules": ["drift", "sustained"] }
+      ],
+      "intended_severity": ["high", "medium"],
+      "mock_action": "page_oncall",
+      "must_mention_correlation": true,
+      "why": "Three sensors on one tool drift together. Grouped into ONE alert (one diagnosis per incident, not three pages); the explanation must reason about the correlation."
+    }
+  }
+}

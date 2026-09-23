@@ -1,0 +1,22 @@
+name: cvd04-threshold-boundary
+title: Right at the threshold - CVD Chamber 4
+category: threshold_boundary
+description: >
+  A noise-free, hand-built stream that pins the exact z-score cutoff. Every
+  sensor alternates exactly one sigma above and below its base, so after
+  warm-up the baseline and sigma are exact. Heater temperature then reads
+  z = 3.000 three times in a row: that is ON the threshold and flags
+  (sustained rule, >= 3.0). RF power reads z = 3.000 only twice, then
+  z = 2.997 three times: neither flags. Expect exactly one alert, on
+  heater_temp.
+equipment_id: CVD-04
+ticks: 80
+seed: 909
+noise_model: alternate
+sensors:
+  heater_temp:
+    patterns:
+      - { type: values, start: 20, values: [401.5, 401.5, 401.5] }
+  rf_power:
+    patterns:
+      - { type: values, start: 20, values: [809.0, 809.0, 800.0, 808.99, 808.99, 808.99] }

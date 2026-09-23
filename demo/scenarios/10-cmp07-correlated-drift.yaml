@@ -1,0 +1,23 @@
+name: cmp07-correlated-drift
+title: Correlated vibration and temperature drift - CMP Polisher 7
+category: correlated_drift
+description: >
+  From tick 45, spindle vibration, carrier-head vibration and pad temperature
+  on CMP Polisher 7 all rise together - the signature of mechanical wear
+  (e.g. a pad conditioner or spindle bearing) heating the pad. Each sensor
+  alone looks like a mild drift; together they are one incident. The flags
+  are grouped into a single alert and the explanation should reference the
+  correlation, not one sensor in isolation. Higher severity.
+equipment_id: CMP-07
+ticks: 130
+seed: 1010
+sensors:
+  spindle_vib:
+    patterns:
+      - { type: drift, start: 45, per_tick: 0.008 }
+  head_vib:
+    patterns:
+      - { type: drift, start: 45, per_tick: 0.006 }
+  pad_temp:
+    patterns:
+      - { type: drift, start: 45, per_tick: 0.06 }

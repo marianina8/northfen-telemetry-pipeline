@@ -1,0 +1,15 @@
+name: cmp07-noisy-within-bounds
+title: Noisy but stable - CMP Polisher 7
+category: noisy_normal
+description: >
+  CMP Polisher 7 on the new Line 4 runs noticeably rougher than the older
+  tools - roughly three times the usual vibration noise - but it is stable:
+  no trend, no shift. A fixed spec-sheet limit false-alarms on this; the
+  detector learns this tool's own noise and should NOT flag.
+equipment_id: CMP-07
+ticks: 120
+seed: 110
+sensors:
+  spindle_vib: { noise: 0.13 }
+  head_vib:    { noise: 0.09 }
+  pad_temp:    { noise: 0.8 }

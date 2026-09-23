@@ -1,0 +1,110 @@
+# Northfen Semiconductor telemetry pipeline configuration.
+#
+# Everything that decides behaviour lives here, not in code: detector
+# thresholds, per-sensor-type overrides, how alerts are grouped, what the
+# Bedrock "explain" step sees, and the deterministic dispatch table that turns
+# (severity, confidence) into an action.
+
+company: Northfen Semiconductor
+fab: Fab N2 (capacity expansion, lines 3-4)
+
+# ---------------------------------------------------------------- detection
+# 100% deterministic statistics. No model is involved in deciding whether a
+# reading is anomalous. See NORTHFEN-ARCHITECTURE.md, "Detection".
+detector:
+  warmup: 20                  # readings used to learn each series' baseline mean and sigma
+  ewma_alpha: 0.1             # baseline mean tracks in-control readings (|z| < sustained_z)
+  sustained_z: 3.0            # |z| >= this ...
+  sustained_count: 3          # ... for this many consecutive readings (same direction) -> flag
+  spike_z: 5.0                # |z| >= this on a single reading -> flag immediately
+  drift_sigma: 4.0            # |baseline - warm-up baseline| >= this many sigma -> flag (slow drift)
+  clear_after: 10             # readings with no rule active before an episode closes
+  stuck_count: 12             # readings in a row ...
+  stuck_tolerance_sigma: 0.01 # ... whose range is <= this * sigma -> sensor fault (stuck at value)
+  dropout_count: 3            # consecutive missing readings -> sensor fault (dropout)
+  window_size: 10             # readings per scored window (every window's score is stored)
+  # Per-sensor-type settings. min_sigma is a floor so a very quiet sensor
+  # can't produce huge z-scores from tiny, physically meaningless wiggles.
+  # Any detector key above can be overridden per type.
+  sensor_types:
+    temperature:      { min_sigma: 0.05 }
+    vibration_rms:    { min_sigma: 0.005 }
+    particle_count:   { min_sigma: 1.0, spike_z: 6.0 }   # counts are bursty; demand a bigger spike
+    rf_power:         { min_sigma: 0.5 }
+    chamber_pressure: { min_sigma: 0.002 }
+
+# ---------------------------------------------------------------- grouping
+alerts:
+  # A flag on another sensor of the same tool within this many ticks of an
+  # open alert joins that alert (one diagnosis per tool incident, not one
+  # page per sensor).
+  group_ticks: 30
+  # Wait this many ticks after the first flag before explaining, so sensors
+  # that cross their threshold a moment later are part of the same diagnosis.
+  settle_ticks: 8
+  # If a sensor joins after the explanation was produced, re-explain once.
+  max_explains_per_alert: 2
+  # Public-demo guard rail: Bedrock calls per visitor session.
+  max_explains_per_session: 20
+
+# ---------------------------------------------------------------- explain
+explain:
+  provider: mock              # mock | bedrock   (the deployed stack sets bedrock)
+  context_ticks: 40           # readings of history per sensor shown to the model
+  history_items: 5            # recent maintenance/incident records shown to the model
+  bedrock:
+    region: us-west-2
+    model_id: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    max_tokens: 700
+    temperature: 0
+  cause_categories:           # the model must rank causes from this list
+    - rf_delivery               # RF generator / match network
+    - vacuum_or_leak            # pumps, seals, gauge-side leaks
+    - thermal_control           # heaters, chillers, ESC/platen temperature
+    - mechanical_wear           # bearings, spindles, pad conditioners, robots
+    - contamination             # chamber flaking, slurry, particles from parts
+    - gas_delivery              # MFCs, valves, gas-line issues
+    - consumable_end_of_life    # pads, rings, liners near their limit
+    - sensor_or_instrumentation # the sensor itself, not the process
+    - process_recipe_change     # a recipe/setpoint change, not a fault
+    - unknown
+
+# ---------------------------------------------------------------- dispatch
+# Plain, ordered rules: first match wins. The model supplies severity and
+# confidence; this table - not the model - decides what happens.
+dispatch:
+  low_confidence_below: 0.6
+  rules:
+    - name: explain-failed-goes-to-human
+      when: { explain_failed: true }
+      action: page_oncall
+    - name: sensor-fault-ticket
+      when: { kind: sensor_fault }
+      action: open_ticket
+    - name: low-confidence-goes-to-human
+      when: { confidence_below: 0.6 }
+      action: page_oncall
+    - name: high-severity-pages
+      when: { severity: high }
+      action: page_oncall
+    - name: medium-severity-ticket
+      when: { severity: medium }
+      action: open_ticket
+    - name: low-severity-log
+      when: { severity: low }
+      action: log_only
+  # Deterministic floors: the model can't talk a large excursion down to a
+  # log line. Applied after the rules above; they only ever raise the action.
+  floors:
+    - name: large-excursion-at-least-ticket
+      when: { min_abs_z: 8.0 }
+      action: open_ticket
+  # Public sandbox sessions never send real pages; the page is recorded as
+  # simulated. CLI / webhook sessions publish to SNS when a topic is set.
+  page_sandbox_sessions: false
+
+# ---------------------------------------------------------------- simulate
+simulate:
+  tick_seconds: 0.4           # live pacing: ~48 s for a 120-tick scenario
+  sandbox_ttl: 24h
+  max_runs_per_session: 12

@@ -1,0 +1,9 @@
+# local pipeline data (store, outbox)
+.northfen/
+# build output
+bin/
+infra/.aws-sam/
+infra/local-env.json
+*.test
+coverage.out
+.DS_Store
