@@ -44,8 +44,8 @@ import (
 const version = "0.1.0"
 
 type globals struct {
-	data, config, profile string
-	bedrock, quiet        bool
+	data, config, profile, store string
+	bedrock, quiet               bool
 }
 
 func main() {
@@ -93,7 +93,9 @@ Global flags:
   -data DIR       local data directory (default .northfen)
   -config FILE    config file (default: embedded config/northfen.yaml)
   -bedrock        use Amazon Bedrock for the explain step (default: offline mock)
-  -profile NAME   AWS profile for Bedrock (default demos-admin)
+  -profile NAME   AWS profile for Bedrock / DynamoDB (default demos-admin)
+  -store KIND     file (default, -data) or dynamo (the deployed stack's tables,
+                  from NF_READINGS_TABLE / NF_STATE_TABLE / NF_APP_TABLE)
   -quiet          don't log actions to stderr
 `)
 }
@@ -107,6 +109,7 @@ func run(ctx context.Context, args []string, out io.Writer, in io.Reader) error 
 	fs.StringVar(&g.profile, "profile", "demos-admin", "")
 	fs.BoolVar(&g.bedrock, "bedrock", false, "")
 	fs.BoolVar(&g.quiet, "quiet", false, "")
+	fs.StringVar(&g.store, "store", "file", "")
 	if err := fs.Parse(args); err != nil {
 		usage(out)
 		return err
@@ -137,7 +140,7 @@ func run(ctx context.Context, args []string, out io.Writer, in io.Reader) error 
 	}
 
 	open := func() (*localapp.App, error) {
-		return localapp.Open(ctx, localapp.Options{DataDir: g.data, ConfigPath: g.config, Bedrock: g.bedrock, Profile: g.profile, Quiet: g.quiet || cmd == "mcp"})
+		return localapp.Open(ctx, localapp.Options{DataDir: g.data, ConfigPath: g.config, Bedrock: g.bedrock, Profile: g.profile, Quiet: g.quiet || cmd == "mcp", Store: g.store})
 	}
 	app, err := open()
 	if err != nil {

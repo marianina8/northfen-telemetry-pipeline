@@ -1,0 +1,326 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Northfen Semiconductor telemetry pipeline (synthetic data). Streaming
+  anomaly detection: simulator/webhook -> Kinesis -> Go consumer Lambda
+  (deterministic windowed EWMA/z-score scoring, detector state in DynamoDB)
+  -> flagged alerts -> SQS (settle delay) -> explain Lambda (one bounded
+  Bedrock call) -> deterministic dispatch table -> log / ticket / SNS page.
+  Hosted console at marian.online/demos/northfen. Deploy runbook: infra/README.md.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: demo
+    AllowedValues: [demo, dev, prod]
+  ExplainProvider:
+    Type: String
+    Default: bedrock
+    AllowedValues: [bedrock, mock]
+    Description: Use "mock" to deploy the plumbing without any Bedrock calls.
+  BedrockInferenceProfileId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Cross-region inference profile the explain Lambda calls (same one Rivergate/Amberlight use). Confirm it is enabled in the account.
+  BedrockFoundationModelId:
+    Type: String
+    Default: anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Foundation model behind the inference profile (for IAM).
+  WebhookSharedSecretParam:
+    Type: String
+    Default: northfen-telemetry/webhook-shared-secret
+    Description: SSM SecureString name (WITHOUT the leading slash) holding the X-Northfen-Token secret. Create it before deploying.
+  DashboardPasswordParam:
+    Type: String
+    Default: northfen-telemetry/dashboard-password
+    Description: SSM SecureString name (WITHOUT the leading slash) holding the hosted console password. Create it before deploying.
+  DashboardAllowedOrigins:
+    Type: String
+    Default: https://marian.online,https://www.marian.online
+    Description: Comma-separated site origins allowed to POST to the console (the site that proxies it).
+  OnCallEmail:
+    Type: String
+    Default: ""
+    Description: Optional email subscribed to the page topic. Visitor sandboxes never send real pages either way.
+
+Conditions:
+  HasOnCallEmail: !Not [!Equals [!Ref OnCallEmail, ""]]
+
+Globals:
+  Function:
+    Runtime: provided.al2023
+    Architectures: [arm64]
+    Handler: bootstrap
+    MemorySize: 256
+    Timeout: 30
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+    Environment:
+      Variables:
+        NF_STAGE: !Ref Stage
+        NF_READINGS_TABLE: !Ref ReadingsTable
+        NF_STATE_TABLE: !Ref StateTable
+        NF_APP_TABLE: !Ref AppTable
+        NF_STREAM_NAME: !Ref TelemetryStream
+        NF_EXPLAIN_QUEUE_URL: !Ref ExplainQueue
+        NF_EXPLAIN_PROVIDER: !Ref ExplainProvider
+        NF_BEDROCK_MODEL_ID: !Ref BedrockInferenceProfileId
+        NF_PAGE_TOPIC_ARN: !Ref PageTopic
+
+Resources:
+  # ------------------------------------------------------------ state (DynamoDB)
+  # Time series. Timestream for LiveAnalytics has been closed to new customers
+  # since 2025-06-20, so readings live here: pk series =
+  # "<session>#<equipment_id>#<sensor_id>", sk ts (sortable UTC timestamp).
+  ReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: series, AttributeType: S }
+        - { AttributeName: ts, AttributeType: S }
+      KeySchema:
+        - { AttributeName: series, KeyType: HASH }
+        - { AttributeName: ts, KeyType: RANGE }
+      TimeToLiveSpecification: { AttributeName: expires_at, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  # Detector state, externalized because the consumer Lambda is stateless:
+  # pk session_id, sk series = "<equipment_id>#<sensor_id>".
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: session_id, AttributeType: S }
+        - { AttributeName: series, AttributeType: S }
+      KeySchema:
+        - { AttributeName: session_id, KeyType: HASH }
+        - { AttributeName: series, KeyType: RANGE }
+      TimeToLiveSpecification: { AttributeName: expires_at, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  # Windows, alerts + audit trail, runs, session counters, equipment history.
+  AppTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+        - { AttributeName: gsi1pk, AttributeType: S }
+        - { AttributeName: gsi1sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: gsi1
+          KeySchema:
+            - { AttributeName: gsi1pk, KeyType: HASH }
+            - { AttributeName: gsi1sk, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      TimeToLiveSpecification: { AttributeName: expires_at, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  # ------------------------------------------------------------ stream + queues
+  TelemetryStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1               # provisioned: ~$11/month; plenty for the demo
+      RetentionPeriodHours: 24
+      StreamEncryption:
+        EncryptionType: KMS
+        KeyId: alias/aws/kinesis
+
+  ExplainDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  ExplainQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 180      # 6x the explain timeout
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ExplainDLQ.Arn
+        maxReceiveCount: 3
+
+  PageTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Northfen on-call (demo)
+      KmsMasterKeyId: alias/aws/sns
+
+  PageSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasOnCallEmail
+    Properties:
+      TopicArn: !Ref PageTopic
+      Protocol: email
+      Endpoint: !Ref OnCallEmail
+
+  # ------------------------------------------------------------ functions
+  ConsumerFunction:
+    Type: AWS::Serverless::Function
+    Metadata: { BuildMethod: makefile }
+    Properties:
+      Description: Kinesis consumer - deterministic windowed scoring (no model), detector state in DynamoDB, flagged alerts -> SQS.
+      CodeUri: ../
+      Events:
+        Stream:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt TelemetryStream.Arn
+            StartingPosition: LATEST
+            BatchSize: 100
+            MaximumBatchingWindowInSeconds: 1
+            ParallelizationFactor: 1       # one batch per shard at a time: detector state stays consistent
+            MaximumRetryAttempts: 5
+            FunctionResponseTypes: [ReportBatchItemFailures]
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ReadingsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref StateTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref AppTable }
+        - SQSSendMessagePolicy: { QueueName: !GetAtt ExplainQueue.QueueName }
+
+  ExplainFunction:
+    Type: AWS::Serverless::Function
+    Metadata: { BuildMethod: makefile }
+    Properties:
+      Description: SQS explain worker - one bounded Bedrock call per flagged alert, then the deterministic dispatch table.
+      CodeUri: ../
+      Events:
+        Jobs:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ExplainQueue.Arn
+            BatchSize: 5
+            FunctionResponseTypes: [ReportBatchItemFailures]
+            ScalingConfig:
+              MaximumConcurrency: 2        # bounds Bedrock spend/throttling
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ReadingsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref StateTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref AppTable }
+        - SQSSendMessagePolicy: { QueueName: !GetAtt ExplainQueue.QueueName }
+        - SNSPublishMessagePolicy: { TopicName: !GetAtt PageTopic.TopicName }
+        - Statement:
+            - Sid: BedrockInvokeExplainModelOnly
+              Effect: Allow
+              Action: [bedrock:InvokeModel]
+              Resource:
+                - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockInferenceProfileId}
+                - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/${BedrockFoundationModelId}
+
+  SimulatorFunction:
+    Type: AWS::Serverless::Function
+    Metadata: { BuildMethod: makefile }
+    Properties:
+      Description: Streams a recorded run's synthetic readings into Kinesis at the run's pace (~50 s per scenario).
+      CodeUri: ../
+      Timeout: 120
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref AppTable }
+        - Statement:
+            - Effect: Allow
+              Action: [kinesis:PutRecords, kinesis:PutRecord]
+              Resource: !GetAtt TelemetryStream.Arn
+
+  WebhookApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      DefaultRouteSettings: { ThrottlingBurstLimit: 20, ThrottlingRateLimit: 5 }
+
+  WebhookFunction:
+    Type: AWS::Serverless::Function
+    Metadata: { BuildMethod: makefile }
+    Properties:
+      Description: POST /simulate (start a streamed scenario) and POST /readings (raw readings -> Kinesis). Shared-secret header.
+      CodeUri: ../
+      Environment:
+        Variables:
+          NF_WEBHOOK_SECRET_PARAM: !Sub /${WebhookSharedSecretParam}
+          NF_SIMULATOR_FUNCTION: !Ref SimulatorFunction
+      Events:
+        Simulate:
+          Type: HttpApi
+          Properties: { ApiId: !Ref WebhookApi, Path: /simulate, Method: POST }
+        Readings:
+          Type: HttpApi
+          Properties: { ApiId: !Ref WebhookApi, Path: /readings, Method: POST }
+        Health:
+          Type: HttpApi
+          Properties: { ApiId: !Ref WebhookApi, Path: /healthz, Method: GET }
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref AppTable }
+        - SSMParameterReadPolicy: { ParameterName: !Ref WebhookSharedSecretParam }
+        - LambdaInvokePolicy: { FunctionName: !Ref SimulatorFunction }
+        - Statement:
+            - Effect: Allow
+              Action: [kinesis:PutRecords, kinesis:PutRecord]
+              Resource: !GetAtt TelemetryStream.Arn
+
+  DashboardApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      DefaultRouteSettings: { ThrottlingBurstLimit: 40, ThrottlingRateLimit: 20 }  # the live view polls ~1/s
+
+  DashboardFunction:
+    Type: AWS::Serverless::Function
+    Metadata: { BuildMethod: makefile }
+    Properties:
+      Description: Hosted live console - password, private 24h sandbox per sign-in, scenario runs via the simulator.
+      CodeUri: ../
+      MemorySize: 512
+      Timeout: 15
+      Environment:
+        Variables:
+          NF_DASHBOARD_PASSWORD_PARAM: !Sub /${DashboardPasswordParam}
+          NF_DASHBOARD_BASE_PATH: /demos/northfen   # must match the paths below and the marian.online rewrite
+          NF_DASHBOARD_ALLOWED_ORIGINS: !Ref DashboardAllowedOrigins
+          NF_DASHBOARD_SITE_URL: /demos
+          NF_SIMULATOR_FUNCTION: !Ref SimulatorFunction
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref DashboardApi, Path: /demos/northfen, Method: ANY }
+        Pages:
+          Type: HttpApi
+          Properties: { ApiId: !Ref DashboardApi, Path: "/demos/northfen/{proxy+}", Method: ANY }
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ReadingsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref StateTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref AppTable }
+        - SQSSendMessagePolicy: { QueueName: !GetAtt ExplainQueue.QueueName }
+        - SSMParameterReadPolicy: { ParameterName: !Ref DashboardPasswordParam }
+        - LambdaInvokePolicy: { FunctionName: !Ref SimulatorFunction }
+
+Outputs:
+  DashboardUrl:
+    Description: Hosted console (password-protected). marian.online proxies /demos/northfen/* here.
+    Value: !Sub https://${DashboardApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/demos/northfen/
+  DashboardOrigin:
+    Description: Origin for marian.online's vercel.json rewrite destination.
+    Value: !Sub https://${DashboardApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  WebhookUrl:
+    Description: POST {"scenario":"10"} to /simulate, or raw readings to /readings, with X-Northfen-Token.
+    Value: !Sub https://${WebhookApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Stage}
+  StreamName:
+    Value: !Ref TelemetryStream
+  ReadingsTableName:
+    Value: !Ref ReadingsTable
+  StateTableName:
+    Value: !Ref StateTable
+  AppTableName:
+    Value: !Ref AppTable
+  ExplainQueueUrl:
+    Value: !Ref ExplainQueue
+  ExplainDLQUrl:
+    Value: !Ref ExplainDLQ
+  PageTopicArn:
+    Value: !Ref PageTopic

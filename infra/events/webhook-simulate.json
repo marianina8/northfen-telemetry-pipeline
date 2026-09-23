@@ -1,0 +1,21 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /simulate",
+  "rawPath": "/demo/simulate",
+  "rawQueryString": "",
+  "headers": {
+    "content-type": "application/json",
+    "x-northfen-token": "REPLACE-WITH-THE-SSM-SECRET"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/demo/simulate",
+      "sourceIp": "127.0.0.1"
+    },
+    "domainName": "localhost",
+    "stage": "demo"
+  },
+  "body": "{\"scenario\": \"10\"}",
+  "isBase64Encoded": false
+}

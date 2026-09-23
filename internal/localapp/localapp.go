@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+
 	"github.com/marianina8/northfen-telemetry-pipeline/internal/config"
 	"github.com/marianina8/northfen-telemetry-pipeline/internal/dispatch"
 	"github.com/marianina8/northfen-telemetry-pipeline/internal/explain"
@@ -25,13 +28,16 @@ type Options struct {
 	Bedrock    bool   // use Bedrock instead of the offline mock
 	Profile    string // AWS profile for Bedrock (e.g. demos-admin)
 	Quiet      bool   // don't log actions to stderr
+	// Store is "file" (default, DataDir) or "dynamo": the deployed stack's
+	// tables, named by NF_READINGS_TABLE / NF_STATE_TABLE / NF_APP_TABLE.
+	Store string
 }
 
 // App is a wired local pipeline.
 type App struct {
-	Svc   *pipeline.Service
-	Store *store.File
-	Dir   string
+	Svc  *pipeline.Service
+	file *store.File
+	Dir  string
 }
 
 // Open builds the local app. History is seeded on first use.
@@ -50,9 +56,20 @@ func Open(ctx context.Context, o Options) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	st, err := store.OpenFile(o.DataDir)
-	if err != nil {
-		return nil, err
+	var st store.Store
+	var file *store.File
+	switch o.Store {
+	case "", "file":
+		if file, err = store.OpenFile(o.DataDir); err != nil {
+			return nil, err
+		}
+		st = file
+	case "dynamo":
+		if st, err = dynamoStore(ctx, cfg.Explain.Bedrock.Region, o.Profile); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown store %q (file or dynamo)", o.Store)
 	}
 	model, err := explain.New(ctx, cfg, o.Profile)
 	if err != nil {
@@ -73,11 +90,35 @@ func Open(ctx context.Context, o Options) (*App, error) {
 			return nil, err
 		}
 	}
-	return &App{Svc: svc, Store: st, Dir: o.DataDir}, nil
+	if o.Store == "dynamo" {
+		svc.ExpireAll = true // same as the deployed stack
+	}
+	return &App{Svc: svc, file: file, Dir: o.DataDir}, nil
+}
+
+func dynamoStore(ctx context.Context, region, profile string) (store.Store, error) {
+	r, s, a := os.Getenv("NF_READINGS_TABLE"), os.Getenv("NF_STATE_TABLE"), os.Getenv("NF_APP_TABLE")
+	if r == "" || s == "" || a == "" {
+		return nil, fmt.Errorf("-store dynamo needs NF_READINGS_TABLE, NF_STATE_TABLE and NF_APP_TABLE (the stack outputs; see infra/README.md)")
+	}
+	opts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
+	if profile != "" {
+		opts = append(opts, awsconfig.WithSharedConfigProfile(profile))
+	}
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), ReadingsTable: r, StateTable: s, AppTable: a}, nil
 }
 
 // Outbox is the local stand-in for tickets and pages.
 func (a *App) Outbox() string { return filepath.Join(a.Dir, "outbox.jsonl") }
 
 // Close releases the store lock file.
-func (a *App) Close() error { return a.Store.Close() }
+func (a *App) Close() error {
+	if a.file != nil {
+		return a.file.Close()
+	}
+	return nil
+}

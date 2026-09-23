@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "northfen-readonly": {
+      "command": "/ABSOLUTE/PATH/TO/northfen-telemetry-pipeline/bin/northfen",
+      "args": ["-data", "/ABSOLUTE/PATH/TO/northfen-telemetry-pipeline/.northfen", "mcp"]
+    },
+    "northfen-oncall-agent": {
+      "command": "/ABSOLUTE/PATH/TO/northfen-telemetry-pipeline/bin/northfen",
+      "args": ["-data", "/ABSOLUTE/PATH/TO/northfen-telemetry-pipeline/.northfen", "mcp", "-allow-write", "ack,escalate", "-actor", "oncall-agent"]
+    }
+  }
+}

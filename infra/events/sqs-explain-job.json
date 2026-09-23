@@ -1,0 +1,13 @@
+{
+  "Records": [
+    {
+      "messageId": "m-1",
+      "receiptHandle": "x",
+      "body": "{\"alert_id\": \"NF-REPLACEME\", \"session_id\": \"local-invoke\", \"due_tick\": 0}",
+      "attributes": {},
+      "messageAttributes": {},
+      "eventSource": "aws:sqs",
+      "awsRegion": "us-west-2"
+    }
+  ]
+}

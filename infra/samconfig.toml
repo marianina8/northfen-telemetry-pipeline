@@ -1,0 +1,28 @@
+# AWS SAM CLI config for the Northfen telemetry pipeline. Run sam commands from
+# this directory (infra/), or use `make sam-build` / `make sam-deploy`.
+version = 0.1
+
+[default.global.parameters]
+stack_name = "northfen-telemetry-pipeline"
+profile = "demos-admin"   # the IAM Identity Center profile from `aws configure sso`
+region = "us-west-2"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+fail_on_empty_changeset = false
+resolve_s3 = true
+s3_prefix = "northfen-telemetry-pipeline"
+parameter_overrides = "Stage=\"demo\" ExplainProvider=\"bedrock\" BedrockInferenceProfileId=\"us.anthropic.claude-haiku-4-5-20251001-v1:0\" BedrockFoundationModelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\" WebhookSharedSecretParam=\"northfen-telemetry/webhook-shared-secret\" DashboardPasswordParam=\"northfen-telemetry/dashboard-password\""
+tags = "app=\"northfen-telemetry\" data=\"synthetic\""
+image_repositories = []
+
+[default.local_invoke.parameters]
+env_vars = "local-env.json"

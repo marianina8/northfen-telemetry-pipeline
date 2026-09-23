@@ -1,0 +1,42 @@
+{
+  "ConsumerFunction": {
+    "NF_READINGS_TABLE": "<ReadingsTableName output>",
+    "NF_STATE_TABLE": "<StateTableName output>",
+    "NF_APP_TABLE": "<AppTableName output>",
+    "NF_STREAM_NAME": "<StreamName output>",
+    "NF_EXPLAIN_QUEUE_URL": "<ExplainQueueUrl output>",
+    "NF_EXPLAIN_PROVIDER": "mock"
+  },
+  "ExplainFunction": {
+    "NF_READINGS_TABLE": "<ReadingsTableName output>",
+    "NF_STATE_TABLE": "<StateTableName output>",
+    "NF_APP_TABLE": "<AppTableName output>",
+    "NF_STREAM_NAME": "<StreamName output>",
+    "NF_EXPLAIN_QUEUE_URL": "<ExplainQueueUrl output>",
+    "NF_EXPLAIN_PROVIDER": "mock"
+  },
+  "SimulatorFunction": {
+    "NF_READINGS_TABLE": "<ReadingsTableName output>",
+    "NF_STATE_TABLE": "<StateTableName output>",
+    "NF_APP_TABLE": "<AppTableName output>",
+    "NF_STREAM_NAME": "<StreamName output>",
+    "NF_EXPLAIN_QUEUE_URL": "<ExplainQueueUrl output>",
+    "NF_EXPLAIN_PROVIDER": "mock"
+  },
+  "WebhookFunction": {
+    "NF_READINGS_TABLE": "<ReadingsTableName output>",
+    "NF_STATE_TABLE": "<StateTableName output>",
+    "NF_APP_TABLE": "<AppTableName output>",
+    "NF_STREAM_NAME": "<StreamName output>",
+    "NF_EXPLAIN_QUEUE_URL": "<ExplainQueueUrl output>",
+    "NF_EXPLAIN_PROVIDER": "mock"
+  },
+  "DashboardFunction": {
+    "NF_READINGS_TABLE": "<ReadingsTableName output>",
+    "NF_STATE_TABLE": "<StateTableName output>",
+    "NF_APP_TABLE": "<AppTableName output>",
+    "NF_STREAM_NAME": "<StreamName output>",
+    "NF_EXPLAIN_QUEUE_URL": "<ExplainQueueUrl output>",
+    "NF_EXPLAIN_PROVIDER": "mock"
+  }
+}
