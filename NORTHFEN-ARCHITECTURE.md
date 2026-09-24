@@ -12,43 +12,120 @@ trigger, to explain something that has already been decided is anomalous.
 
 ## Data flow
 
+```mermaid
+flowchart TB
+    subgraph IN["Ingest"]
+        DASHRUN["Dashboard: Run scenario"]
+        WHSIM["POST /simulate"]
+        WHRAW["POST /readings<br/>(raw readings)"]
+        SIM["SimulatorFunction<br/>regenerates the run from its seed,<br/>paces readings tick by tick"]
+    end
+
+    KIN[("Kinesis Data Stream<br/>1 shard · partition key session#35;equipment")]
+
+    subgraph DETECT["Detect: ConsumerFunction (no model, ever)"]
+        STEP["Step each reading:<br/>warm-up → EWMA baseline → z-score → rules"]
+        GROUP{"Flag?"}
+        JOIN["Create alert, or join an open alert<br/>on the same tool (correlation)"]
+    end
+
+    subgraph STORE["DynamoDB"]
+        READ[("ReadingsTable<br/>pk session#35;equipment#35;sensor · sk ts")]
+        STATE[("StateTable<br/>pk session · sk equipment#35;sensor")]
+        APP[("AppTable<br/>windows · alerts + audit trail · runs · history")]
+    end
+
+    Q[["SQS ExplainQueue<br/>delayed by the settle time"]]
+
+    subgraph EXPLAIN["Explain + Dispatch: ExplainFunction"]
+        DUE{"Settled?"}
+        KIND{"Kind?"}
+        BR["ONE Bedrock call<br/>every sensor on the tool + maintenance history<br/>→ causes, checks, severity, confidence"]
+        SKIP["Sensor fault:<br/>no model call"]
+        TABLE{"Dispatch table<br/>(config, not the model)"}
+    end
+
+    LOG["log only"]
+    TKT["open ticket"]
+    PAGE["page on-call<br/>(SNS; simulated for sandboxes)"]
+
+    UI["Live console<br/>charts · anomaly feed · ack / escalate / dismiss"]
+    CLI["CLI + MCP server<br/>read tools always on · writes opt-in"]
+
+    DASHRUN -- async invoke --> SIM
+    WHSIM -- async invoke --> SIM
+    SIM -- PutRecords --> KIN
+    WHRAW -- PutRecords --> KIN
+    KIN -- "batches ≤100 · one per shard at a time" --> STEP
+    STATE <-- "load / checkpoint (written last)" --> STEP
+    STEP -- readings --> READ
+    STEP -- "every scored window" --> APP
+    STEP --> GROUP
+    GROUP -- yes --> JOIN
+    JOIN --> APP
+    JOIN -- "new or joined alert" --> Q
+    Q --> DUE
+    DUE -- "not yet: re-queue" --> Q
+    DUE -- yes --> KIND
+    KIND -- anomaly --> BR
+    KIND -- "sensor fault" --> SKIP
+    READ -. window stats .-> BR
+    BR --> TABLE
+    SKIP --> TABLE
+    TABLE --> LOG
+    TABLE --> TKT
+    TABLE --> PAGE
+    TABLE -- "input, reply, decision, actions" --> APP
+    APP <--> UI
+    APP <--> CLI
 ```
- dashboard "Run scenario" ─┐                    POST /readings (raw readings) ─┐
- POST /simulate ───────────┤                                                    │
-                           ▼                                                    │
-             SimulatorFunction (async invoke)                                   │
-             regenerates the run's readings from                                │
-             the scenario seed; paces them tick by tick                         │
-                           │  PutRecords, partition key session#equipment      │
-                           ▼                                                    ▼
-                   ┌────────────────── Kinesis Data Stream (1 shard) ──────────────────┐
-                   └───────────────────────────────┬───────────────────────────────────┘
-                                                   │ event source mapping: batch ≤100, 1 s window,
-                                                   │ ParallelizationFactor 1, ReportBatchItemFailures
-                                                   ▼
-   ConsumerFunction  (no model, ever)
-     load detector state  ◄── StateTable   pk session_id, sk "<equipment_id>#<sensor_id>"
-     step each reading: warm-up → EWMA baseline → z-score → rules
-     every window_size readings → scored window ──► AppTable (every window stored)
-     readings ──► ReadingsTable   pk "<session>#<equipment_id>#<sensor_id>", sk ts
-     flag → create alert, or join an open alert on the same tool (correlation grouping)
-     new/joined alert → SQS message delayed by the settle time
-     save detector state (last: it is the checkpoint)
-                                                   │
-                                                   ▼
-   ExplainFunction  (SQS, max concurrency 2)
-     not due yet (tool hasn't streamed settle_ticks past the flag)? → re-queue with a delay
-     anomaly  → build input: every sensor on the tool over the window (stats computed in Go)
-                + recent maintenance/incident history from the store
-              → ONE Bedrock Converse call → strict JSON schema
-     sensor fault → skipped by design (no model call)
-     dispatch table (config) → log_only | open_ticket | page_oncall (SNS)
-     everything recorded on the alert: input, raw reply, decision, actions, audit events
-                                                   │
-                                                   ▼
-   DashboardFunction  live console: polls the run view (~1/s), SVG charts, anomaly feed,
-                      acknowledge / escalate / dismiss → audit trail
-   CLI + MCP server   the same operations locally (feed, status, get_sensor_history, ack …)
+
+### One alert, end to end
+
+The correlated-drift scenario (`10`) from the console: three sensors on one tool, one alert, one model call.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Visitor
+    participant D as Console (Dashboard Lambda)
+    participant S as Simulator Lambda
+    participant K as Kinesis
+    participant C as Consumer Lambda
+    participant DB as DynamoDB
+    participant Q as SQS
+    participant X as Explain Lambda
+    participant B as Bedrock
+    participant P as SNS / ticket
+
+    V->>D: Run "correlated drift, CMP Polisher 7"
+    D->>DB: record run (private sandbox, 24h TTL)
+    D-)S: async invoke {session, run}
+    loop every tick (~0.4 s, ~50 s total)
+        S->>K: PutRecords (3 sensor readings)
+        K->>C: batch
+        C->>DB: load detector state
+        C->>C: score: warm-up, EWMA, z-score, rules
+        C->>DB: readings, scored windows, state (last)
+    end
+    Note over C: tick 78: pad_temp drift flags
+    C->>DB: create alert
+    C->>Q: explain job, delayed ~4 s (settle)
+    Note over C: ticks 79–81: head_vib and spindle_vib<br/>join the SAME alert
+    Q->>X: job
+    X->>DB: tool due? (streamed 8 ticks past the flag)
+    X->>DB: every sensor on the tool + maintenance history
+    X->>B: ONE Converse call (strict JSON schema)
+    B-->>X: causes, checks, severity=high, confidence 0.82
+    X->>X: dispatch table: high → page_oncall
+    X->>P: page (simulated for sandboxes)
+    X->>DB: input, raw reply, decision, action, audit events
+    loop every ~1 s
+        V->>D: poll the run view
+        D->>DB: readings, windows, alerts
+    end
+    V->>D: Acknowledge / Escalate / Dismiss + note
+    D->>DB: audit event (dashboard:name)
 ```
 
 ## Detection (deterministic, `internal/detect`)
