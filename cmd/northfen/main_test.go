@@ -105,3 +105,27 @@ func TestMCPOverCLI(t *testing.T) {
 		t.Fatal("unknown write tool accepted")
 	}
 }
+
+func TestIngestDeadlineExport(t *testing.T) {
+	dir := t.TempDir()
+	file := "../../demo/deadline/lgt-overnight-export.json"
+	out, err := cli(t, dir, "", "ingest", "-pool", "FARM-LGT", file)
+	if err != nil || !strings.Contains(out, "render-node12") {
+		t.Fatalf("host listing: %v\n%s", err, out)
+	}
+	out, err = cli(t, dir, "", "ingest", "-pool", "FARM-LGT", "-host", "render-node07=node07_frame_time", "-host", "render-node12=node12_frame_time", file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"14 failed", "1 alert(s)", "node12_frame_time spike", "OPEN_TICKET"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	if _, err := cli(t, dir, "", "ingest", "-pool", "FARM-LGT", "-host", "render-node99=node07_frame_time", file); err == nil || !strings.Contains(err.Error(), "not in the export") {
+		t.Errorf("unknown host: %v", err)
+	}
+	if _, err := cli(t, dir, "", "ingest", "-pool", "FARM-LGT", "-host", "render-node07=node07_gpu_temp", file); err == nil {
+		t.Error("mapping frame times onto a temperature metric should fail")
+	}
+}

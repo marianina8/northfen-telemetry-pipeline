@@ -83,10 +83,11 @@ NORTHFEN = """  {
       'Detection is 100% deterministic and unit-tested: the model is called only on already-flagged windows, so a quiet night costs nothing and false alarms can\\'t be talked into existence',
       'Operations, not art: the model reads infrastructure metrics and is instructed never to comment on the creative content or quality of any shot',
       'Full audit trail for every alert: the detector rule and z-score, exactly what the model was shown, its answer, which dispatch rule fired, and who acknowledged it',
+      'Works alongside the render manager the studio already runs (AWS Deadline Cloud, Deadline 10, Tractor, OpenCue): it watches the farm\'s infrastructure, not the job queue, and can replay history in Deadline Cloud\'s own export format',
       'MCP tools let an AI agent work the anomaly feed. Read access is on by default and write access is opt-in per tool; no tool can change a threshold or pick the action',
     ],
     tryIt: [
-      'Pick a scenario: a normal night, a node slowing after a driver update, a burst of failed frames, a frozen license monitor, or the whole pool slowing down at once',
+      'Pick a scenario: a normal night, a node slowing after a driver update, a burst of failed frames, a frozen license monitor, the whole pool slowing down at once, or a night replayed from a Deadline Cloud export',
       'Watch the metrics stream in and the windows get scored live. Normal scenarios should stay quiet',
       'When something flags, read the diagnosis, then acknowledge, escalate or dismiss it',
     ],

@@ -72,6 +72,14 @@ Commands:
       -via-kinesis                deliver through the local Kinesis/SQS stand-ins
                                   into the real Lambda handlers
       -session ID                 tag readings with a session (default local)
+  ingest EXPORT.json              run your own render-manager history through the
+                                  pipeline, locally (Deadline Cloud export format;
+                                  see demo/deadline/export-deadline-cloud.sh)
+      -pool POOL                  render pool to attribute it to
+      -host HOST=METRIC           host's frame times -> a frame_time metric (repeatable)
+      -failed METRIC              failed task runs -> an error_count metric
+      -bucket 5m                  resampling interval (one tick)
+                                  (run with just -pool to list hosts and metrics)
   score                           windowed detection only - no store, no AWS
       -scenario NAME | -file F    readings from a scenario or a JSONL file (- = stdin)
       -json                       machine-readable output
@@ -150,6 +158,8 @@ func run(ctx context.Context, args []string, out io.Writer, in io.Reader) error 
 	switch cmd {
 	case "simulate":
 		return cmdSimulate(ctx, app, cargs, out)
+	case "ingest":
+		return cmdIngest(ctx, app, cargs, out)
 	case "explain":
 		return cmdExplain(ctx, app, cargs, out)
 	case "feed":

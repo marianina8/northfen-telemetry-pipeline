@@ -75,6 +75,15 @@
       "mock_action": "page_oncall",
       "must_mention_correlation": true,
       "why": "NAS latency and both nodes' frame times rise together while node07's GPU temperature stays flat. Grouped into ONE alert (one diagnosis per incident, not three pages); the explanation must reason about the correlation and point at shared storage."
+    },
+    "11-lgt-deadline-replay": {
+      "should_flag": true,
+      "alerts": [
+        { "kind": "anomaly", "equipment_id": "FARM-LGT", "sensors": ["node12_frame_time"], "rules": ["spike"] }
+      ],
+      "intended_severity": ["medium"],
+      "mock_action": "open_ticket",
+      "why": "Frame times replayed from a Deadline Cloud export (synthetic sample). render-node12's frames get ~25% slower at 02:50 and a few fail; node07 and the NAS stay normal. One node on its own: the diagnosis should point at that node (it got a new GPU driver two days ago) and NOT at shared storage, and a lone slow node is a ticket, not a 3am page."
     }
   }
 }

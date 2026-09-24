@@ -48,6 +48,7 @@
     ["Farm problems: should flag", ["gradual_drift", "spike", "correlated_drift"]],
     ["Broken monitoring: fault, no model call", ["sensor_fault"]],
     ["Edge case", ["threshold_boundary"]],
+    ["Replayed from a Deadline Cloud export: should flag", ["render_manager_replay"]],
   ];
   let scenarios = [];
   let current = null;       // run id being shown

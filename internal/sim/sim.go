@@ -56,8 +56,16 @@ type Scenario struct {
 	Seed        uint64                `yaml:"seed" json:"seed"`
 	NoiseModel  string                `yaml:"noise_model,omitempty" json:"noise_model,omitempty"`
 	Sensors     map[string]SensorPlan `yaml:"sensors,omitempty" json:"sensors,omitempty"`
-	File        string                `yaml:"-" json:"file"`
+	// Source, when set, feeds some metrics from a render-manager export
+	// (see replay.go); the rest stay synthetic.
+	Source *Source `yaml:"source,omitempty" json:"source,omitempty"`
+	File   string  `yaml:"-" json:"file"`
+
+	replay Replayed // resolved from Source at catalog load
 }
+
+// Replayed reports whether the scenario replays render-manager data.
+func (s Scenario) Replayed() bool { return s.Source != nil }
 
 func (s Scenario) validate(c *Catalog) error {
 	if !telemetry.ValidID(s.Name) {
@@ -122,9 +130,13 @@ func Generate(c *Catalog, sc Scenario, o Options) ([]telemetry.Reading, error) {
 	for t := 0; t < sc.Ticks; t++ {
 		ts := o.Start.Add(time.Duration(t) * o.Interval).UTC()
 		for i, s := range eq.Sensors {
+			v := gens[i].next(t) // always drawn, so replayed metrics don't shift the others' noise
+			if col, ok := sc.replay[s.ID]; ok {
+				v = col[t]
+			}
 			out = append(out, telemetry.Reading{
 				SessionID: o.SessionID, RunID: o.RunID, EquipmentID: eq.ID, ToolType: eq.ToolType,
-				SensorID: s.ID, SensorType: s.Type, Unit: s.Unit, Tick: t, TS: ts, Value: gens[i].next(t),
+				SensorID: s.ID, SensorType: s.Type, Unit: s.Unit, Tick: t, TS: ts, Value: v,
 			})
 		}
 	}

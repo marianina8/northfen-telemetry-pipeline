@@ -192,7 +192,7 @@ func TestLocalNoPassword(t *testing.T) {
 	w := c.do("GET", "/demos/northfen/api/scenarios", "", "")
 	var sc struct{ Scenarios []struct{ Name string } }
 	json.Unmarshal(w.Body.Bytes(), &sc)
-	if len(sc.Scenarios) != 10 {
+	if len(sc.Scenarios) != 11 {
 		t.Fatal(w.Body.String())
 	}
 }

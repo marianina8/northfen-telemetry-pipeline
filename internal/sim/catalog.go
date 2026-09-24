@@ -143,6 +143,9 @@ func LoadCatalogFS(fsys fs.FS) (*Catalog, error) {
 		if err := s.validate(&c); err != nil {
 			return nil, fmt.Errorf("%s: %w", f, err)
 		}
+		if err := s.loadReplay(fsys, &c); err != nil {
+			return nil, fmt.Errorf("%s: %w", f, err)
+		}
 		c.Scenarios = append(c.Scenarios, s)
 	}
 	return &c, nil

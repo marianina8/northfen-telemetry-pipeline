@@ -35,6 +35,25 @@ Kinesis stream → Go consumer Lambda: rolling EWMA / z-score per metric (state 
               → live console: acknowledge, escalate, dismiss (full audit trail)
 ```
 
+## Where it fits: alongside the render manager
+
+Northfen doesn't replace the render manager a studio already runs (AWS Deadline Cloud, Deadline
+10, Tractor, OpenCue...). It sits next to it:
+
+- **The render manager knows about jobs.** Deadline Cloud even has an AI assistant that reads a
+  *failed job's* logs and suggests a fix, after the fact, one job at a time.
+- **Northfen watches the farm's infrastructure while it runs:** frame times per node, plus the
+  storage, license server and node health the render manager doesn't see. It correlates them into
+  one incident *before* frames start failing, e.g. "every node on the lighting pool slowed down
+  at once, and so did the NAS: it's storage, not the nodes".
+- **It works with whatever manager the studio has.** Plenty of farms are on-prem or hybrid, and
+  many still run Deadline 10, which AWS put into maintenance mode in November 2025.
+
+Scenario 11 shows the hand-off: it replays render-manager history in **Deadline Cloud's own export
+format** (a synthetic sample) alongside node and storage monitoring, and
+[you can run your own export through it](#bring-your-own-deadline-cloud-history) without it
+leaving your network.
+
 ## What's different from the Rivergate and Amberlight demos
 
 Those two are the same **Ingest → Classify → Route** pipeline: one discrete item, one model call
@@ -59,9 +78,10 @@ trail, and the MCP read/write split.
 ```bash
 make test                       # every scenario's detection outcome, the z = 3.0 boundary, replay safety, ...
 make build
-bin/northfen scenarios          # 10 synthetic scenarios and what each should do
+bin/northfen scenarios          # 11 scenarios (10 synthetic, 1 replayed from a Deadline Cloud export) and what each should do
 bin/northfen simulate 10        # whole lighting pool slows with NAS latency → one alert → "storage" → page
 bin/northfen simulate 06        # bursty but healthy comp pool → nothing flagged, no model call
+bin/northfen simulate 11        # replayed Deadline Cloud history: one node slows → "that node, not storage" → ticket
 bin/northfen simulate 07 -via-kinesis   # through the local Kinesis/SQS stand-ins into the Lambda handlers
 bin/northfen simulate 05 -live  # paced tick by tick
 bin/northfen feed
@@ -85,16 +105,45 @@ instead of the offline mock explainer.
 | 08 | Lighting pool | node07 goes silent for 8 readings | monitoring fault (both of its metrics, one alert) → ticket, no model call |
 | 09 | FX pool | noise-free fixture: z = 3.000 ×3 (flags) vs 3.000 ×2 then 2.997 ×3 (doesn't) | exactly one flag |
 | 10 | Lighting pool | NAS latency and both nodes' frame times rise together, GPU temp flat | ONE alert, three metrics; the explanation must point at shared storage |
+| 11 | Lighting pool | **Replayed from a Deadline Cloud export:** render-node12's frames get ~25% slower at 02:50 and a few fail; node07 and the NAS stay normal | one node, not storage → ticket, not a 3am page |
 
 ### Naive vs. adaptive (`compare/`)
 
 `go run ./compare` runs every scenario through fixed alert limits and through the adaptive
-detector. **Naive: 5/10 correct. Adaptive: 10/10.** The fixed limits miss the driver drift,
+detector. **Naive: 6/11 correct. Adaptive: 11/11.** The fixed limits miss the driver drift,
 false-alarm on the bursty-but-healthy compositing pool, and can't see a frozen or silent metric.
 In the storage slowdown they page about two slow nodes first and only see the storage latency ~40
 ticks later; the adaptive detector flags storage first and groups all three into one incident.
 See [compare/RESULTS.md](compare/RESULTS.md). With `-bedrock` it also checks the live model's
 severity against `demo/expected.json`.
+
+### Bring your own Deadline Cloud history
+
+Scenario 11's data is a synthetic sample, but the format is real: it mirrors the Deadline Cloud
+API's own JSON (`ListSessions`, `GetWorker`, `ListSessionActions`). A studio can export its own
+history and run it through the pipeline **on its own machine**; nothing leaves the network
+unless you add `-bedrock`, and then only the flagged windows' statistics go to your own AWS account.
+
+```bash
+demo/deadline/export-deadline-cloud.sh FARM_ID QUEUE_ID JOB_ID [JOB_ID ...] > export.json   # read-only AWS CLI calls
+bin/northfen ingest -pool FARM-LGT export.json                                               # lists hosts and metrics
+bin/northfen ingest -pool FARM-LGT -host render-node07=node07_frame_time \
+                                   -host render-node12=node12_frame_time export.json
+```
+
+How the adapter (`internal/deadline`) turns Deadline's event-shaped data into readings:
+- Each host's frame time for a bucket (default 5 minutes = one tick) is the **median** duration of
+  the task runs that finished successfully on that host in the bucket. Setup actions
+  (environment enter/exit, syncing inputs) are skipped.
+- A bucket where a host finished nothing is **missing**, not zero, so a host that goes quiet
+  becomes a monitoring fault (dropout rule) instead of a fake "0 min/frame".
+- Failed task runs can be counted into an `error_count` metric with `-failed`.
+- Deadline only knows about work. GPU temperatures, storage latency and license waits come from a
+  studio's node and storage monitoring; in scenario 11 they're synthetic.
+
+The export script is written against the API reference but hasn't been run against a live farm
+yet. Deadline 10 would need a second, small adapter (its Web Service returns task render times
+per worker) that writes the same format.
 
 ### MCP
 

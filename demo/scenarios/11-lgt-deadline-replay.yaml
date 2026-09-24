@@ -1,0 +1,21 @@
+name: lgt-deadline-replay
+title: Deadline Cloud replay - one node slows overnight
+category: render_manager_replay
+description: >
+  Replays an overnight of render-manager history in AWS Deadline Cloud's
+  export format (a synthetic sample: demo/deadline/lgt-overnight-export.json).
+  Frame times for render-node07 and render-node12 come from the Deadline task
+  runs, resampled into 5-minute buckets (one tick = 5 minutes of farm time);
+  GPU temperature and NAS latency come from node and storage monitoring
+  (synthetic here). At 02:50 node12's frames get ~25% slower (and a few fail) while node07 and
+  the NAS stay normal: one node, not the shared storage.
+equipment_id: FARM-LGT
+ticks: 120
+seed: 1111
+source:
+  format: deadline-cloud
+  file: demo/deadline/lgt-overnight-export.json
+  bucket: 5m
+  frame_time:
+    render-node07: node07_frame_time
+    render-node12: node12_frame_time

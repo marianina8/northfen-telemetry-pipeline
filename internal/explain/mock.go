@@ -123,6 +123,12 @@ func (m *Mock) Explain(_ context.Context, in Input) (Explanation, error) {
 	case rules["drift"] && maxShift >= 6:
 		sev = "medium"
 	}
+	// One node rendering slower delays the night but loses no frames: a
+	// clear, lasting slowdown on a lone node is a ticket (drain it, look in
+	// the morning), not a 3am page. Pool-wide slowdowns stay "correlated".
+	if !correlated && len(types) == 1 && types["frame_time"] && (rules["spike"] || rules["sustained"]) {
+		sev = "medium"
+	}
 
 	conf := 0.7
 	if correlated {

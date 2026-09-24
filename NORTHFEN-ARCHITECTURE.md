@@ -233,6 +233,36 @@ and DynamoDB stores (the latter against a fake), so they can't drift apart.
 - **Concurrent writers:** the consumer (adding a correlated metric) and the explain worker
   (recording an explanation) update an alert with optimistic versioning and retry on conflict.
 
+## Render-manager input (Deadline Cloud)
+
+Northfen runs alongside the studio's render manager rather than replacing it. `internal/deadline`
+reads history in AWS Deadline Cloud's export format (the JSON of `ListSessions`, `GetWorker` and
+`ListSessionActions`, assembled by `demo/deadline/export-deadline-cloud.sh`) and resamples it into
+the same readings the simulator produces:
+
+```mermaid
+flowchart LR
+    EXP["Deadline Cloud export<br/>workers · sessions · task runs"] --> RS["resample per host<br/>5-min buckets"]
+    RS -->|"median successful task-run time<br/>(nothing finished → missing)"| FT["frame_time metrics"]
+    RS -->|"failed task runs"| FF["error_count metric"]
+    MON["node & storage monitoring<br/>(synthetic in the demo)"] --> OT["temperature · io_latency · license"]
+    FT --> R["readings"]
+    FF --> R
+    OT --> R
+    R --> D["same detector, explain, dispatch"]
+```
+
+- **Scenario 11** declares a `source:` (format, file, bucket, host → metric map). At catalog load
+  the export is resampled once. Generation then takes those metrics from the export and keeps the
+  rest synthetic, so the scenario still streams through Kinesis, the simulator Lambda and the
+  console like any other. The bundled export is a synthetic sample.
+- **`northfen ingest`** does the same for a studio's own export, locally, over the pool they name,
+  with the export's real timestamps.
+- Deadline's EventBridge events only carry status changes (no durations or workers), which is why
+  the adapter works from session actions rather than events. A live integration would take the
+  "task run succeeded/failed" event from EventBridge and look up the session action to get the
+  duration and host.
+
 ## Public demo sandboxing
 
 Every sign-in to the hosted console gets a private session `v` + 16 hex. Runs, readings, windows,
@@ -242,8 +272,8 @@ never see each other's data, and sandbox pages never reach SNS.
 
 ## Interfaces
 
-- **CLI** (`cmd/northfen`): `simulate <scenario> [-live | -via-kinesis]`, `score` (detection only,
-  no store, no AWS), `explain <window-id|alert-id>` (refuses unflagged windows), `feed`,
+- **CLI** (`cmd/northfen`): `simulate <scenario> [-live | -via-kinesis]`, `ingest EXPORT.json`
+  (a studio's own Deadline Cloud history, locally), `score` (detection only, no store, no AWS), `explain <window-id|alert-id>` (refuses unflagged windows), `feed`,
   `status`, `ack [-dismiss|-escalate]`, `history`, `mcp`.
 - **MCP** (`internal/mcp`): read tools `feed`, `status`, `get_sensor_history`, `list_scenarios`
   are always on. Write tools `ack`, `escalate` and `simulate` (it injects data) are enabled one by

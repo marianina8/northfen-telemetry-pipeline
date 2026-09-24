@@ -10,7 +10,8 @@ import "embed"
 //go:embed config/northfen.yaml
 var DefaultConfig []byte
 
-// Demo holds demo/equipment.yaml, demo/scenarios/*.yaml and demo/expected.json.
+// Demo holds demo/equipment.yaml, demo/scenarios/*.yaml, demo/expected.json
+// and the render-manager exports replayed by some scenarios (demo/deadline).
 //
-//go:embed demo/equipment.yaml demo/scenarios/*.yaml demo/expected.json
+//go:embed demo/equipment.yaml demo/scenarios/*.yaml demo/expected.json demo/deadline/*.json
 var Demo embed.FS
