@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Northfen Semiconductor telemetry pipeline (synthetic data). Streaming
+  Northfen Studios render-farm telemetry pipeline (synthetic data). Streaming
   anomaly detection: simulator/webhook -> Kinesis -> Go consumer Lambda
   (deterministic windowed EWMA/z-score scoring, detector state in DynamoDB)
   -> flagged alerts -> SQS (settle delay) -> explain Lambda (one bounded

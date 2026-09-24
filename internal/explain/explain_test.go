@@ -16,12 +16,12 @@ import (
 var cats = config.Default().Explain.CauseCategories
 
 func TestParseValid(t *testing.T) {
-	in := "```json\n" + `{"likely_causes":["Mechanical_Wear","thermal_control","mechanical_wear"],"explanation":"Vibration and pad temperature rise together.","recommended_checks":["Inspect the spindle bearing"],"severity":"HIGH","confidence":0.8}` + "\n```"
+	in := "```json\n" + `{"likely_causes":["Storage_IO","network","storage_io"],"explanation":"Every node slowed together with NAS latency.","recommended_checks":["Check the filer"],"severity":"HIGH","confidence":0.8}` + "\n```"
 	e, err := explain.Parse(in, cats)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(e.LikelyCauses) != 2 || e.LikelyCauses[0] != "mechanical_wear" || e.Severity != "high" || e.Confidence != 0.8 || e.Raw != in {
+	if len(e.LikelyCauses) != 2 || e.LikelyCauses[0] != "storage_io" || e.Severity != "high" || e.Confidence != 0.8 || e.Raw != in {
 		t.Fatalf("%+v", e)
 	}
 }
@@ -29,7 +29,7 @@ func TestParseValid(t *testing.T) {
 func TestParseRejects(t *testing.T) {
 	base := func(mod string) string {
 		m := map[string]string{
-			"causes": `["mechanical_wear"]`, "expl": `"x"`, "checks": `["y"]`, "sev": `"low"`, "conf": `0.5`, "extra": ``,
+			"causes": `["storage_io"]`, "expl": `"x"`, "checks": `["y"]`, "sev": `"low"`, "conf": `0.5`, "extra": ``,
 		}
 		k, v, _ := strings.Cut(mod, "=")
 		m[k] = v
@@ -91,13 +91,13 @@ func (f *fakeConverse) Converse(_ context.Context, in *bedrockruntime.ConverseIn
 }
 
 func input() explain.Input {
-	return explain.Input{Equipment: explain.Equipment{ID: "CMP-07", Name: "CMP Polisher 7"}, CauseCategories: cats,
-		Triggers: []explain.Trigger{{SensorID: "spindle_vib", Rule: "drift"}},
-		Sensors:  []explain.SensorSummary{{SensorID: "spindle_vib", SensorType: "vibration_rms", Flagged: true, ShiftSigma: 5}}}
+	return explain.Input{Equipment: explain.Equipment{ID: "FARM-LGT", Name: "Lighting render pool"}, CauseCategories: cats,
+		Triggers: []explain.Trigger{{SensorID: "node07_frame_time", Rule: "drift"}},
+		Sensors:  []explain.SensorSummary{{SensorID: "node07_frame_time", SensorType: "frame_time", Flagged: true, ShiftSigma: 5}}}
 }
 
 func TestBedrockOneBoundedCall(t *testing.T) {
-	f := &fakeConverse{reply: `{"likely_causes":["mechanical_wear"],"explanation":"Spindle vibration is creeping up.","recommended_checks":["Check the bearing"],"severity":"medium","confidence":0.7}`}
+	f := &fakeConverse{reply: `{"likely_causes":["node_hardware"],"explanation":"node07 frame time is creeping up.","recommended_checks":["Check the bearing"],"severity":"medium","confidence":0.7}`}
 	b, err := explain.NewBedrock(f, config.Default())
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestBedrockOneBoundedCall(t *testing.T) {
 	if len(f.in.Messages) != 1 || f.in.ToolConfig != nil || *f.in.InferenceConfig.Temperature != 0 {
 		t.Fatal("expected one user message, no tools, temperature 0")
 	}
-	if !strings.Contains(f.in.Messages[0].Content[0].(*types.ContentBlockMemberText).Value, `"spindle_vib"`) {
+	if !strings.Contains(f.in.Messages[0].Content[0].(*types.ContentBlockMemberText).Value, `"node07_frame_time"`) {
 		t.Fatal("input not sent")
 	}
 }
@@ -128,12 +128,15 @@ func TestBedrockBadReplyKeepsRaw(t *testing.T) {
 
 func TestMockCorrelation(t *testing.T) {
 	in := input()
-	in.Sensors = append(in.Sensors, explain.SensorSummary{SensorID: "pad_temp", SensorType: "temperature", Flagged: true, ShiftSigma: 4})
+	in.Sensors = []explain.SensorSummary{
+		{SensorID: "nas_read_latency", SensorType: "io_latency", Flagged: true, ShiftSigma: 5},
+		{SensorID: "node07_frame_time", SensorType: "frame_time", Flagged: true, ShiftSigma: 4},
+	}
 	e, err := (&explain.Mock{}).Explain(context.Background(), in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.LikelyCauses[0] != "mechanical_wear" || e.Severity != "high" || !strings.Contains(e.Explanation, "together") || !strings.Contains(e.Model, "mock") {
+	if e.LikelyCauses[0] != "storage_io" || e.Severity != "high" || !strings.Contains(e.Explanation, "together") || !strings.Contains(e.Model, "mock") {
 		t.Fatalf("%+v", e)
 	}
 	// every mock output passes the same strict schema as Bedrock's

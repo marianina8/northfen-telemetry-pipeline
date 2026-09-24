@@ -1,0 +1,16 @@
+name: comp-noisy-within-bounds
+title: Bursty but healthy - Compositing pool
+category: noisy_normal
+description: >
+  The newly expanded compositing pool runs a mix of light and very heavy
+  shots, so frame time, memory and temperature swing about three times as
+  much as usual - but nothing is trending or shifting. A fixed alert limit
+  false-alarms on this; the detector learns this pool's own noise and should
+  NOT flag.
+equipment_id: COMP-POOL
+ticks: 120
+seed: 110
+sensors:
+  comp_frame_time: { noise: 4.9 }
+  comp_mem_used:   { noise: 3.0 }
+  comp_node_temp:  { noise: 0.8 }

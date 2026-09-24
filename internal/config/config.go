@@ -138,7 +138,7 @@ func (s Simulate) TTL() time.Duration {
 // Config is the whole file.
 type Config struct {
 	Company  string   `yaml:"company"`
-	Fab      string   `yaml:"fab"`
+	Site     string   `yaml:"site"`
 	Detector Detector `yaml:"detector"`
 	Alerts   Alerts   `yaml:"alerts"`
 	Explain  Explain  `yaml:"explain"`

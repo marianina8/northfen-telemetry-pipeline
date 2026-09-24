@@ -1,0 +1,9 @@
+name: fx-normal
+title: Normal simulation batch - FX pool
+category: baseline
+description: >
+  The FX pool running a standard simulation batch. CPU temperature, memory,
+  cache latency and failed frames all nominal. Nothing should flag.
+equipment_id: FARM-FX
+ticks: 120
+seed: 119

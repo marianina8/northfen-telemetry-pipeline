@@ -194,7 +194,7 @@ func (s *Service) BuildInput(ctx context.Context, a store.Alert) (explain.Input,
 
 	flagged := map[string]store.SeriesFlag{}
 	in := explain.Input{
-		Fab:             s.Cfg.Fab,
+		Site:            s.Cfg.Site,
 		Equipment:       explain.Equipment{ID: eq.ID, Name: eq.Name, ToolType: eq.ToolType, Line: eq.Line},
 		TickSeconds:     tickSec,
 		CauseCategories: s.Cfg.Explain.CauseCategories,

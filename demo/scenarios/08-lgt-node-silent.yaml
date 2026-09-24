@@ -1,0 +1,19 @@
+name: lgt-node-silent
+title: A render node goes silent - Lighting pool
+category: sensor_fault
+description: >
+  node07 stops reporting both its frame time and its GPU temperature for eight
+  readings starting at tick 60, then comes back (a hung node or a dropped
+  heartbeat). Missing data is not "zero" and not "normal": after three
+  missing readings in a row both metrics flag as a monitoring fault (dropout
+  rule), grouped into one alert, and a ticket opens without a model call.
+equipment_id: FARM-LGT
+ticks: 120
+seed: 808
+sensors:
+  node07_frame_time:
+    patterns:
+      - { type: dropout, start: 60, length: 8 }
+  node07_gpu_temp:
+    patterns:
+      - { type: dropout, start: 60, length: 8 }

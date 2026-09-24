@@ -9,7 +9,7 @@
 </head>
 <body data-base="{{.Base}}">
 <header class="top">
-  <a href="{{.Base}}/" class="brand">{{.Company}} <span>· Equipment anomaly console</span></a>
+  <a href="{{.Base}}/" class="brand">{{.Company}} <span>· Render farm console</span></a>
   <span class="sub">Stream → Detect → Explain → Dispatch · synthetic data{{if .SiteURL}} · <a href="{{.SiteURL}}" class="sitelink">About this demo ↗</a>{{end}}</span>
   {{if .Nav}}<nav>
     <a href="{{.Base}}/">Console</a>
@@ -22,7 +22,7 @@
 
 {{define "foot"}}
 </main>
-<footer class="foot">{{.Fab}} · all sensor data is synthetic{{if .Mode}} · {{.Mode}}{{end}}</footer>
+<footer class="foot">{{.Site}} · all farm data is synthetic{{if .Mode}} · {{.Mode}}{{end}}</footer>
 </body>
 </html>
 {{end}}

@@ -209,11 +209,11 @@ func Contract(t *testing.T, newStore func(t *testing.T, now func() time.Time) st
 			later = append(later, eq.HistoryAsOf(t0.AddDate(0, 0, 3))...)
 		}
 		st.PutHistory(ctx, later) // nor does re-seeding on another day
-		h, _ := st.History(ctx, "ETCH-12", 3)
+		h, _ := st.History(ctx, "FARM-LGT", 3)
 		if len(h) != 3 || !h[0].Date.After(h[1].Date) {
 			t.Fatalf("%+v", h)
 		}
-		all, _ := st.History(ctx, "ETCH-12", 0)
+		all, _ := st.History(ctx, "FARM-LGT", 0)
 		if len(all) != 5 {
 			t.Fatalf("history duplicated: %d records", len(all))
 		}

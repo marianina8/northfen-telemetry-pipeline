@@ -10,17 +10,24 @@ import (
 	"time"
 )
 
-// Sensor types. Detector parameters (min std, overrides) are keyed by these.
+// Metric types. Detector parameters (min std, overrides) are keyed by these.
 const (
-	Temperature     = "temperature"
-	VibrationRMS    = "vibration_rms"
-	ParticleCount   = "particle_count"
-	RFPower         = "rf_power"
-	ChamberPressure = "chamber_pressure"
+	FrameTime   = "frame_time"  // render time per frame
+	Temperature = "temperature" // CPU / GPU / host temperature
+	Memory      = "memory"      // memory in use
+	IOLatency   = "io_latency"  // storage / cache latency
+	ErrorCount  = "error_count" // failed frames per minute
+	License     = "license"     // license seats in use, checkout wait
 )
 
-// SensorTypes lists every sensor type the pipeline knows about.
-var SensorTypes = []string{Temperature, VibrationRMS, ParticleCount, RFPower, ChamberPressure}
+// SensorTypes lists every metric type the pipeline knows about.
+var SensorTypes = []string{FrameTime, Temperature, Memory, IOLatency, ErrorCount, License}
+
+// NonNegative reports whether a metric type can never go below zero
+// (counts, latencies, waits); the simulator clamps those at 0.
+func NonNegative(t string) bool {
+	return t == ErrorCount || t == IOLatency || t == License || t == Memory || t == FrameTime
+}
 
 // LocalSession is the session used by the CLI and local tools when no
 // visitor sandbox is involved.

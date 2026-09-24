@@ -250,7 +250,7 @@ func TestSimulatorPacesTicksIntoKinesis(t *testing.T) {
 	if want := time.Duration(119) * 400 * time.Millisecond; slept != want {
 		t.Fatalf("slept %v, want %v (paced at the run's tick interval)", slept, want)
 	}
-	if pk := aws.ToString(k.puts[0][0].PartitionKey); pk != "v0123456789abcdef#CVD-04" {
+	if pk := aws.ToString(k.puts[0][0].PartitionKey); pk != "v0123456789abcdef#FARM-FX" {
 		t.Fatalf("partition key %q", pk)
 	}
 }
@@ -301,7 +301,7 @@ func TestWebhook(t *testing.T) {
 	if w := do("/demo/simulate", "s3cret", `{"scenario":"nope"}`); w.Code != http.StatusBadRequest {
 		t.Fatalf("unknown scenario: %d", w.Code)
 	}
-	r := `{"session_id":"plant-a","equipment_id":"ETCH-12","sensor_id":"esc_temp","sensor_type":"temperature","tick":0,"ts":"2026-01-05T02:00:00Z","value":60.1}`
+	r := `{"session_id":"plant-a","equipment_id":"FARM-LGT","sensor_id":"node07_gpu_temp","sensor_type":"temperature","tick":0,"ts":"2026-01-05T02:00:00Z","value":60.1}`
 	if w := do("/demo/readings", "s3cret", "["+r+"]"); w.Code != http.StatusAccepted || len(k.puts) != 1 {
 		t.Fatalf("readings: %d %s", w.Code, w.Body)
 	}
@@ -309,7 +309,7 @@ func TestWebhook(t *testing.T) {
 	if w := do("/demo/readings", "s3cret", `{"readings":[`+sand+`]}`); w.Code != http.StatusForbidden {
 		t.Fatalf("webhook must not write into visitor sandboxes: %d", w.Code)
 	}
-	if w := do("/demo/readings", "s3cret", `[{"equipment_id":"ETCH-12"}]`); w.Code != http.StatusBadRequest {
+	if w := do("/demo/readings", "s3cret", `[{"equipment_id":"FARM-LGT"}]`); w.Code != http.StatusBadRequest {
 		t.Fatalf("invalid reading: %d", w.Code)
 	}
 }

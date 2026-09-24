@@ -67,7 +67,7 @@ type HistoryItem struct {
 // Input is everything the model sees. It is stored on the alert so anyone
 // can audit exactly what the explanation was based on.
 type Input struct {
-	Fab             string          `json:"fab"`
+	Site            string          `json:"site"`
 	Equipment       Equipment       `json:"equipment"`
 	WindowFromTick  int             `json:"window_from_tick"`
 	WindowToTick    int             `json:"window_to_tick"`

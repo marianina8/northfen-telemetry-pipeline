@@ -49,7 +49,7 @@ func NewMessage(a *store.Alert, action string) Message {
 	if e := a.Explanation; e != nil {
 		m.Severity, m.Confidence, m.Summary, m.Checks = e.Severity, e.Confidence, e.Explanation, e.RecommendedChecks
 	} else if a.Kind == "sensor_fault" {
-		m.Summary = fmt.Sprintf("Sensor fault on %s: %s. The sensor itself looks broken; no model call.", a.EquipmentID, strings.Join(m.Sensors, ", "))
+		m.Summary = fmt.Sprintf("Monitoring fault on %s: %s. The metric itself looks broken; no model call.", a.EquipmentID, strings.Join(m.Sensors, ", "))
 	} else {
 		m.Summary = "No explanation available: " + a.ExplainErr
 	}

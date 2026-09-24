@@ -1,0 +1,17 @@
+name: lgt-driver-drift
+title: Frame times creeping up on one node - Lighting pool
+category: gradual_drift
+description: >
+  node12's frame time creeps up about 0.03 min/frame per reading from tick 40
+  - too slow for any single frame to look alarming, and it never reaches the
+  14 min/frame alert limit. node07 on the same pool stays flat. The detector's
+  baseline follows the creep, and the baseline moving away from where it
+  started is what flags it (drift rule). node12 got a new GPU driver two days
+  ago. Should flag; lower severity.
+equipment_id: FARM-LGT
+ticks: 120
+seed: 404
+sensors:
+  node12_frame_time:
+    patterns:
+      - { type: drift, start: 40, per_tick: 0.028 }

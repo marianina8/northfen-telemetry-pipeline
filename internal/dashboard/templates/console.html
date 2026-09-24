@@ -24,12 +24,12 @@
 <div class="layout">
   <section class="charts" aria-labelledby="tool-title">
     <div class="section-head">
-      <h2 id="tool-title">Live sensors</h2>
+      <h2 id="tool-title">Live metrics</h2>
       <ul class="legend" aria-label="Chart legend">
         <li><i class="lg-line"></i>reading</li>
         <li><i class="lg-band"></i>learned normal (±3σ)</li>
         <li><i class="lg-dot"></i>flagged reading</li>
-        <li><i class="lg-strip"></i>scored windows: <span class="sw sw-normal"></span>normal <span class="sw sw-flagged"></span>flagged <span class="sw sw-fault"></span>sensor fault <span class="sw sw-warmup"></span>learning</li>
+        <li><i class="lg-strip"></i>scored windows: <span class="sw sw-normal"></span>normal <span class="sw sw-flagged"></span>flagged <span class="sw sw-fault"></span>monitoring fault <span class="sw sw-warmup"></span>learning</li>
       </ul>
     </div>
     <div id="charts">
@@ -37,8 +37,8 @@
         <h3>What you'll see</h3>
         <ol>
           <li><b>Readings stream in</b> tick by tick, tagged with your sandbox's session.</li>
-          <li>For each sensor, the first 20 readings <b>learn that tool's normal</b> (mean and noise). After that, every reading gets a z-score and every 10-reading window is scored and stored. This is plain statistics, with no model involved.</li>
-          <li>When a window crosses a threshold, the tool's sensors are <b>grouped into one alert</b>. After a short settle, <b>one bounded model call</b> explains the likely cause across all the sensors and the tool's maintenance history.</li>
+          <li>For each metric, the first 20 readings <b>learn that pool's normal</b> (mean and noise). After that, every reading gets a z-score and every 10-reading window is scored and stored. This is plain statistics, with no model involved.</li>
+          <li>When a window crosses a threshold, the pool's metrics are <b>grouped into one alert</b>. After a short settle, <b>one bounded model call</b> explains the likely cause across all the pool's metrics and its recent changes.</li>
           <li>A <b>fixed table</b> turns severity and confidence into log, ticket or page. Explanations the model isn't sure about go to a human. You can acknowledge, dismiss or escalate.</li>
         </ol>
       </div>

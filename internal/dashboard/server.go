@@ -156,13 +156,13 @@ func (s *Server) session(r *http.Request) string {
 // ---- pages ------------------------------------------------------------------
 
 type page struct {
-	Base, SiteURL, SandboxTTL, Company, Fab, Title, Mode string
-	Sandbox, Nav, Auth                                   bool
+	Base, SiteURL, SandboxTTL, Company, Site, Title, Mode string
+	Sandbox, Nav, Auth                                    bool
 }
 
 func (s *Server) page(title string) page {
 	return page{Base: s.opt.BasePath, SiteURL: s.opt.SiteURL, SandboxTTL: s.opt.SandboxTTL, Company: s.opt.Svc.Cfg.Company,
-		Fab: s.opt.Svc.Cfg.Fab, Title: title, Mode: s.opt.Mode, Sandbox: s.opt.Sandboxes, Nav: true, Auth: s.auth != nil}
+		Site: s.opt.Svc.Cfg.Site, Title: title, Mode: s.opt.Mode, Sandbox: s.opt.Sandboxes, Nav: true, Auth: s.auth != nil}
 }
 
 type consoleData struct {
@@ -172,7 +172,7 @@ type consoleData struct {
 }
 
 func (s *Server) console(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "console.html", consoleData{Page: s.page("Equipment anomaly console"), RunID: r.URL.Query().Get("run"),
+	s.render(w, "console.html", consoleData{Page: s.page("Render farm console"), RunID: r.URL.Query().Get("run"),
 		Explain: s.opt.Svc.Model.Name()})
 }
 

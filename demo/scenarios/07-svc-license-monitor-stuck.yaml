@@ -1,0 +1,15 @@
+name: svc-license-monitor-stuck
+title: License monitor frozen - Shared farm services
+category: sensor_fault
+description: >
+  From tick 50 the license monitor reports exactly the same seat count every
+  reading. The number looks perfectly normal, so an alert limit never fires -
+  but a busy license server's usage always moves. Flags as a monitoring fault
+  (stuck rule), which opens a ticket without a model call.
+equipment_id: SVC-CORE
+ticks: 120
+seed: 707
+sensors:
+  license_seats_used:
+    patterns:
+      - { type: stuck, start: 50 }

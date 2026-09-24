@@ -54,20 +54,20 @@ func TestPatterns(t *testing.T) {
 		}
 		return out
 	}
-	stuck := get("07", "beamline_vacuum")
+	stuck := get("07", "license_seats_used")
 	for i := 51; i < len(stuck); i++ {
 		if *stuck[i] != *stuck[50] {
 			t.Fatalf("stuck sensor moved at tick %d", i)
 		}
 	}
-	drop := get("08", "esc_temp")
+	drop := get("08", "node07_gpu_temp")
 	for i, v := range drop {
 		if (i >= 60 && i < 68) != (v == nil) {
 			t.Fatalf("dropout wrong at tick %d", i)
 		}
 	}
-	b := get("09", "heater_temp")
-	if *b[20] != 401.5 || *b[0] != 400.5 || *b[1] != 399.5 {
+	b := get("09", "sim_node21_cpu_temp")
+	if *b[20] != 69.5 || *b[0] != 68.5 || *b[1] != 67.5 {
 		t.Fatalf("boundary fixture values: %v %v %v", *b[0], *b[1], *b[20])
 	}
 }

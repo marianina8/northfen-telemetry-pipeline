@@ -1,0 +1,24 @@
+name: lgt-storage-slowdown
+title: Whole pool slowing down together - Lighting pool
+category: correlated_drift
+description: >
+  From tick 45, NAS read latency and the frame times on BOTH node07 and
+  node12 rise together, while node07's GPU temperature stays flat - the
+  signature of shared storage slowing everyone down, not of a bad node or a
+  bad driver. Storage flags first, then both nodes within a few ticks. Each metric alone looks like a mild drift; together they are
+  one incident. The flags are grouped into a single alert and the explanation
+  should reference the correlation, not one metric in isolation. Higher
+  severity.
+equipment_id: FARM-LGT
+ticks: 130
+seed: 1010
+sensors:
+  nas_read_latency:
+    patterns:
+      - { type: drift, start: 45, per_tick: 0.08 }
+  node07_frame_time:
+    patterns:
+      - { type: drift, start: 45, per_tick: 0.08 }
+  node12_frame_time:
+    patterns:
+      - { type: drift, start: 45, per_tick: 0.09 }

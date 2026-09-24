@@ -1,5 +1,9 @@
 # Northfen telemetry pipeline: architecture
 
+Northfen Studios is a fictional animation/VFX studio; this pipeline watches its render farm.
+In the code, a **render pool** is an `equipment` record and each of its **metrics** is a
+`sensor` (the field names predate the render-farm framing; the mechanics are identical).
+
 **Stream → Detect → Explain → Dispatch.** This is deliberately *not* the Ingest → Classify → Route
 (ICR) shape of the Rivergate and Amberlight demos. ICR classifies one discrete item with a model
 and routes it. Here the input is a continuous stream, detection is plain statistics with state
@@ -26,7 +30,7 @@ flowchart TB
     subgraph DETECT["Detect: ConsumerFunction (no model, ever)"]
         STEP["Step each reading:<br/>warm-up → EWMA baseline → z-score → rules"]
         GROUP{"Flag?"}
-        JOIN["Create alert, or join an open alert<br/>on the same tool (correlation)"]
+        JOIN["Create alert, or join an open alert<br/>on the same render pool (correlation)"]
     end
 
     subgraph STORE["DynamoDB"]
@@ -40,8 +44,8 @@ flowchart TB
     subgraph EXPLAIN["Explain + Dispatch: ExplainFunction"]
         DUE{"Settled?"}
         KIND{"Kind?"}
-        BR["ONE Bedrock call<br/>every sensor on the tool + maintenance history<br/>→ causes, checks, severity, confidence"]
-        SKIP["Sensor fault:<br/>no model call"]
+        BR["ONE Bedrock call<br/>every metric on the pool + recent changes<br/>→ causes, checks, severity, confidence"]
+        SKIP["Monitoring fault:<br/>no model call"]
         TABLE{"Dispatch table<br/>(config, not the model)"}
     end
 
@@ -68,7 +72,7 @@ flowchart TB
     DUE -- "not yet: re-queue" --> Q
     DUE -- yes --> KIND
     KIND -- anomaly --> BR
-    KIND -- "sensor fault" --> SKIP
+    KIND -- "monitoring fault" --> SKIP
     READ -. window stats .-> BR
     BR --> TABLE
     SKIP --> TABLE
@@ -82,7 +86,7 @@ flowchart TB
 
 ### One alert, end to end
 
-The correlated-drift scenario (`10`) from the console: three sensors on one tool, one alert, one model call.
+The storage-slowdown scenario (`10`) from the console: three metrics on one render pool, one alert, one model call.
 
 ```mermaid
 sequenceDiagram
@@ -98,25 +102,25 @@ sequenceDiagram
     participant B as Bedrock
     participant P as SNS / ticket
 
-    V->>D: Run "correlated drift, CMP Polisher 7"
+    V->>D: Run "whole pool slowing down, Lighting pool"
     D->>DB: record run (private sandbox, 24h TTL)
     D-)S: async invoke {session, run}
     loop every tick (~0.4 s, ~50 s total)
-        S->>K: PutRecords (3 sensor readings)
+        S->>K: PutRecords (4 metric readings)
         K->>C: batch
         C->>DB: load detector state
         C->>C: score: warm-up, EWMA, z-score, rules
         C->>DB: readings, scored windows, state (last)
     end
-    Note over C: tick 78: pad_temp drift flags
+    Note over C: tick 67: nas_read_latency flags (sustained)
     C->>DB: create alert
     C->>Q: explain job, delayed ~4 s (settle)
-    Note over C: ticks 79–81: head_vib and spindle_vib<br/>join the SAME alert
+    Note over C: ticks 69 and 75: node07 and node12 frame times<br/>join the SAME alert
     Q->>X: job
-    X->>DB: tool due? (streamed 8 ticks past the flag)
-    X->>DB: every sensor on the tool + maintenance history
+    X->>DB: pool due? (streamed 8 ticks past the first flag)
+    X->>DB: every metric on the pool + recent changes and incidents
     X->>B: ONE Converse call (strict JSON schema)
-    B-->>X: causes, checks, severity=high, confidence 0.82
+    B-->>X: storage_io first, checks, severity=high
     X->>X: dispatch table: high → page_oncall
     X->>P: page (simulated for sandboxes)
     X->>DB: input, raw reply, decision, action, audit events
@@ -130,34 +134,34 @@ sequenceDiagram
 
 ## Detection (deterministic, `internal/detect`)
 
-Per series (one sensor on one tool, in one session and run):
+Per series (one metric on one render pool, in one session and run):
 
 | Stage | What happens |
 |---|---|
-| Warm-up | The first `warmup` (20) readings set a reference mean and sigma. Sigma is the population std, floored at the sensor type's `min_sigma` so a very quiet sensor can't produce huge z-scores from meaningless wiggles. Sigma is then **held** so a slow drift can't inflate its own noise estimate and hide itself. |
+| Warm-up | The first `warmup` (20) readings set a reference mean and sigma. Sigma is the population std, floored at the metric type's `min_sigma` so a very quiet metric can't produce huge z-scores from meaningless wiggles. Sigma is then **held** so a slow drift can't inflate its own noise estimate and hide itself. |
 | Baseline | An EWMA mean (`ewma_alpha` 0.1) that only in-control readings (\|z\| < `sustained_z`) update, so an excursion can't drag its own baseline along. |
 | Score | z = (value − baseline) / sigma for every reading after warm-up. |
 
 | Rule | Fires when | Kind |
 |---|---|---|
-| `spike` | \|z\| ≥ `spike_z` (5.0; 6.0 for bursty particle counts) on one reading | anomaly |
+| `spike` | \|z\| ≥ `spike_z` (5.0; 6.0 for bursty failed-frame counts) on one reading | anomaly |
 | `sustained` | \|z\| ≥ `sustained_z` (3.0, **inclusive**) for `sustained_count` (3) consecutive readings, same direction | anomaly |
 | `drift` | \|baseline − warm-up reference\| ≥ `drift_sigma` (4) × sigma. This catches a creep too slow for any single reading to look alarming | anomaly |
-| `stuck` | the last `stuck_count` (12) readings span ≤ 0.01 σ. A real analog sensor always wiggles | sensor fault |
-| `dropout` | `dropout_count` (3) missing readings in a row. Missing is neither zero nor normal | sensor fault |
+| `stuck` | the last `stuck_count` (12) readings span ≤ 0.01 σ. A live metric always moves | monitoring fault |
+| `dropout` | `dropout_count` (3) missing readings in a row. Missing is neither zero nor normal | monitoring fault |
 
-An episode opens on the first rule that fires (sensor-fault rules outrank anomaly rules, since a
-stuck gauge's z-score is meaningless) and closes after `clear_after` quiet readings. Every value
-is in `config/northfen.yaml` with per-sensor-type overrides, not hardcoded.
+An episode opens on the first rule that fires (monitoring-fault rules outrank anomaly rules, since a
+frozen metric's z-score is meaningless) and closes after `clear_after` quiet readings. Every value
+is in `config/northfen.yaml` with per-metric-type overrides, not hardcoded.
 
-**Sensor faults and dropouts:** they open an alert of kind `sensor_fault` that goes straight to
-`open_ticket` **without a model call**, because the sensor itself is broken and there's no process
+**Monitoring faults (frozen or silent metrics):** they open an alert of kind `sensor_fault` that
+goes straight to `open_ticket` **without a model call**, because the monitoring itself is broken and there's no farm
 behaviour to diagnose. Marian confirmed this choice (2026-09-23).
 
-**Correlation:** a flag on another sensor of the same tool (same run) within `group_ticks` of an
+**Correlation:** a flag on another metric of the same render pool (same run) within `group_ticks` of an
 open alert joins that alert, so there's one diagnosis and one page per incident. The explain call
-waits `settle_ticks` (8) after the first flag so sensors that cross a moment later are included.
-If a sensor joins after the explanation, it is re-explained once (`max_explains_per_alert: 2`).
+waits `settle_ticks` (8) after the first flag so metrics that cross a moment later are included.
+If a metric joins after the explanation, it is re-explained once (`max_explains_per_alert: 2`).
 Actions only ever escalate: a re-explanation can raise log → page, but never repeats or lowers one.
 
 ## Explain (`internal/explain`)
@@ -184,7 +188,7 @@ decides what happens. The rules are ordered and the first match wins:
 | Rule | Action |
 |---|---|
 | explanation failed | page on-call (a human diagnoses it) |
-| sensor fault | open ticket |
+| monitoring fault | open ticket |
 | confidence < 0.6 (any severity) | page on-call: **uncertain explanations go to a human, not auto-dismissed** |
 | severity high | page on-call |
 | severity medium | open ticket |
@@ -206,7 +210,7 @@ Amberlight already use:
 
 | Table | Keys | Holds |
 |---|---|---|
-| `ReadingsTable` | pk `series` = `<session>#<equipment_id>#<sensor_id>`, sk `ts` (fixed-width UTC) | the sensor time series. The explain step's window read is one Query |
+| `ReadingsTable` | pk `series` = `<session>#<equipment_id>#<sensor_id>`, sk `ts` (fixed-width UTC) | the metric time series. The explain step's window read is one Query |
 | `StateTable` | pk `session_id`, sk `series` = `<equipment_id>#<sensor_id>` | detector state (JSON), the consumer's checkpoint |
 | `AppTable` | pk/sk + `gsi1` | scored windows, alerts with audit trail, runs, session counters, equipment history |
 
@@ -226,7 +230,7 @@ and DynamoDB stores (the latter against a fake), so they can't drift apart.
   alert and window IDs are deterministic hashes, alerts are created with a conditional put, and
   the detector state is written last. A replayed or retried batch changes nothing (tested by
   redelivering every batch).
-- **Concurrent writers:** the consumer (adding a correlated sensor) and the explain worker
+- **Concurrent writers:** the consumer (adding a correlated metric) and the explain worker
   (recording an explanation) update an alert with optimistic versioning and retry on conflict.
 
 ## Public demo sandboxing

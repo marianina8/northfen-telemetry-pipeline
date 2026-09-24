@@ -58,7 +58,7 @@ func main() {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprint(w, `northfen - Northfen Semiconductor telemetry pipeline (synthetic data)
+	fmt.Fprint(w, `northfen - Northfen Studios render-farm telemetry pipeline (synthetic data)
 
 Detection is deterministic statistics. The model only explains windows the
 detector already flagged. Plain code decides what happens next.
@@ -225,7 +225,7 @@ func loadExpected() map[string]string {
 		case !v.ShouldFlag:
 			out[k] = "no flag"
 		case len(v.Alerts) > 0 && v.Alerts[0].Kind == detect.KindSensorFault:
-			out[k] = "sensor fault"
+			out[k] = "monitoring fault"
 		default:
 			out[k] = "anomaly"
 		}
@@ -297,7 +297,7 @@ func cmdScore(g globals, args []string, out io.Writer, in io.Reader) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprintln(out, "\nwindows: ~ warm-up  . normal  ! anomaly rule  x sensor fault (one character per window)")
+	fmt.Fprintln(out, "\nwindows: ~ warm-up  . normal  ! anomaly rule  x monitoring fault (one character per window)")
 	return nil
 }
 
@@ -388,7 +388,7 @@ func cmdSimulate(ctx context.Context, app *localapp.App, args []string, out io.W
 	sc, _ := svc.Cat.Scenario(run.Scenario)
 	eq, _ := svc.Cat.Tool(run.EquipmentID)
 	fmt.Fprintf(out, "%s - %s\n", sc.File, sc.Title)
-	fmt.Fprintf(out, "run %s  session %s  %d ticks x %d sensors on %s (%s)\n\n", run.ID, run.SessionID, run.Ticks, len(eq.Sensors), eq.Name, eq.ToolType)
+	fmt.Fprintf(out, "run %s  session %s  %d ticks x %d metrics on %s (%s)\n\n", run.ID, run.SessionID, run.Ticks, len(eq.Sensors), eq.Name, eq.ToolType)
 
 	switch {
 	case *viaKinesis:
@@ -418,7 +418,7 @@ func cmdSimulate(ctx context.Context, app *localapp.App, args []string, out io.W
 				s := pipeline.Summarize(a)
 				what := "explained"
 				if a.Kind == detect.KindSensorFault {
-					what = "sensor fault, no model call"
+					what = "monitoring fault, no model call"
 				}
 				fmt.Fprintf(out, "  tick %3d  %-6s %s %s -> %s\n", ev.Tick, "RESOLVE", a.ID, what, s.Action)
 			}
@@ -453,7 +453,7 @@ func printRun(ctx context.Context, svc *pipeline.Service, run store.Run, out io.
 	for _, w := range ws {
 		bySensor[w.SensorID] = append(bySensor[w.SensorID], w)
 	}
-	fmt.Fprintf(out, "%d windows scored (one character per %d-reading window: ~ warm-up  . normal  ! flagged  x sensor fault)\n",
+	fmt.Fprintf(out, "%d windows scored (one character per %d-reading window: ~ warm-up  . normal  ! flagged  x monitoring fault)\n",
 		len(ws), svc.Cfg.Detector.WindowSize)
 	for _, sn := range eq.Sensors {
 		var b strings.Builder
@@ -500,9 +500,9 @@ func printAlert(out io.Writer, a store.Alert, full bool) {
 	fmt.Fprintf(out, "    window    %s\n", a.WindowID)
 	switch a.Explain {
 	case store.ExplainSkipped:
-		fmt.Fprintln(out, "    explain   skipped - sensor fault: the sensor itself looks broken, so there's nothing to diagnose")
+		fmt.Fprintln(out, "    explain   skipped - monitoring fault: the metric itself looks broken, so there's nothing to diagnose")
 	case store.ExplainPending:
-		fmt.Fprintln(out, "    explain   pending (waiting for correlated sensors to settle)")
+		fmt.Fprintln(out, "    explain   pending (waiting for correlated metrics to settle)")
 	case store.ExplainFailed:
 		fmt.Fprintf(out, "    explain   FAILED: %s\n", a.ExplainErr)
 	case store.ExplainDone:
@@ -573,7 +573,7 @@ func cmdExplain(ctx context.Context, app *localapp.App, args []string, out io.Wr
 		return err
 	}
 	if a.Kind == detect.KindSensorFault {
-		fmt.Fprintln(out, "sensor fault: explain is skipped by design (the sensor is broken; there is no process to diagnose)")
+		fmt.Fprintln(out, "monitoring fault: explain is skipped by design (the metric is broken; there is no farm behaviour to diagnose)")
 		printAlert(out, a, false)
 		return nil
 	}

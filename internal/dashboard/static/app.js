@@ -45,8 +45,8 @@
   // ---- console -------------------------------------------------------------
   const groups = [
     ["Normal operation: should stay quiet", ["baseline", "noisy_normal"]],
-    ["Process problems: should flag", ["gradual_drift", "spike", "correlated_drift"]],
-    ["Broken sensors: fault, no model call", ["sensor_fault"]],
+    ["Farm problems: should flag", ["gradual_drift", "spike", "correlated_drift"]],
+    ["Broken monitoring: fault, no model call", ["sensor_fault"]],
     ["Edge case", ["threshold_boundary"]],
   ];
   let scenarios = [];
@@ -78,7 +78,7 @@
       }
       if (og.children.length) sel.appendChild(og);
     }
-    sel.value = "cmp07-correlated-drift";
+    sel.value = "lgt-storage-slowdown";
     sel.disabled = false;
     runBtn.disabled = false;
     describe();
@@ -169,13 +169,13 @@
 
     if (v.streaming) {
       const left = Math.max(0, Math.round((r.ticks - 1 - v.tick) * r.tick_seconds));
-      status(`Streaming <b>${esc(r.title)}</b>: tick ${Math.max(0, v.tick + 1)} of ${r.ticks} · about ${left}s left${pending ? " · a window has been flagged, and the model will be called once correlated sensors settle" : ""}`, true);
+      status(`Streaming <b>${esc(r.title)}</b>: tick ${Math.max(0, v.tick + 1)} of ${r.ticks} · about ${left}s left${pending ? " · a window has been flagged, and the model will be called once correlated metrics settle" : ""}`, true);
     } else if (v.settling) {
       status("Stream finished. Waiting for the explain step (one model call per alert)…", true);
     } else {
       const n = v.alerts.length;
       status(n ? `Run complete: ${n} alert${n > 1 ? "s" : ""}, ${v.counts.model_calls || 0} model call${v.counts.model_calls === 1 ? "" : "s"}.` :
-        `Run complete: <b>nothing flagged</b>. Every window stayed inside this tool's learned normal, and no model call was made.`);
+        `Run complete: <b>nothing flagged</b>. Every window stayed inside this pool's learned normal, and no model call was made.`);
     }
 
     const box = $("#charts");
@@ -191,7 +191,7 @@
       const st = card.querySelector(".state");
       const flag = s.flags[s.flags.length - 1];
       st.className = `state ${s.state}`;
-      st.textContent = { warmup: "◌ learning normal", normal: "● normal", anomaly: `▲ anomaly: ${flag?.rule || ""}`, sensor_fault: `✕ sensor fault: ${flag?.rule || ""}` }[s.state] || s.state;
+      st.textContent = { warmup: "◌ learning normal", normal: "● normal", anomaly: `▲ anomaly: ${flag?.rule || ""}`, sensor_fault: `✕ monitoring fault: ${flag?.rule || ""}` }[s.state] || s.state;
       const last = s.points[s.points.length - 1];
       card.querySelector(".now").textContent = last ? (last.v == null ? "no reading" : `${fmt(last.v, s.decimals)} ${s.unit}${last.z != null ? ` · z ${last.z.toFixed(2)}` : ""}`) : "";
       drawChart(card.querySelector(".chart"), s, r.ticks, v.detector);
@@ -314,10 +314,10 @@
       if (!p) { tip.hidden = true; cross.setAttribute("opacity", 0); return; }
       cross.setAttribute("x1", x(t)); cross.setAttribute("x2", x(t)); cross.setAttribute("opacity", 0.5);
       let html = `<b>tick ${t}</b> · `;
-      if (p.v == null) html += "no reading (sensor silent)";
+      if (p.v == null) html += "no reading (metric silent)";
       else html += `${fmt(p.v, s.decimals)} ${esc(s.unit)}`;
       if (p.z != null) html += `<br>z = ${p.z.toFixed(2)} · normal band ${fmt(p.b - det.sustained_z * p.s, s.decimals + 1)}–${fmt(p.b + det.sustained_z * p.s, s.decimals + 1)}`;
-      else if (p.v != null) html += "<br>warm-up: learning this tool's normal";
+      else if (p.v != null) html += "<br>warm-up: learning this metric's normal";
       if (p.r && p.r.length) html += `<br>rule active: <b>${p.r.map(esc).join(", ")}</b>`;
       tip.innerHTML = html;
       tip.hidden = false;
@@ -367,9 +367,9 @@
     const flags = a.flags.map((f) => `${esc(f.sensor_id)} <b>${esc(f.rule)}</b> @${f.tick} (z ${f.z.toFixed(2)})`).join(", ");
     const e = a.explanation;
     const steps = [step("done", `<b>Detected</b> by statistics: ${flags}`)];
-    if (a.flags.length > 1) steps.push(step("done", `<b>Correlated:</b> ${a.flags.length} sensors on ${esc(a.equipment_id)} grouped into one incident`));
-    if (a.kind === "sensor_fault") steps.push(step("skip", "<b>Explain skipped:</b> the sensor itself looks broken, so there's no model call"));
-    else if (a.explain_state === "pending") steps.push(step("busy", "<b>Explaining</b> after a short settle so correlated sensors are included: one bounded model call"));
+    if (a.flags.length > 1) steps.push(step("done", `<b>Correlated:</b> ${a.flags.length} metrics on ${esc(a.equipment_id)} grouped into one incident`));
+    if (a.kind === "sensor_fault") steps.push(step("skip", "<b>Explain skipped:</b> the monitoring itself looks broken, so there's no model call"));
+    else if (a.explain_state === "pending") steps.push(step("busy", "<b>Explaining</b> after a short settle so correlated metrics are included: one bounded model call"));
     else if (a.explain_state === "failed") steps.push(step("done", `<b>No explanation</b> (${esc(a.explain_error)}), so it goes to a human`));
     else steps.push(step("done", `<b>Explained</b> by ${esc(e?.model || "the model")}`));
     steps.push(a.decision ? step("done", `<b>Dispatched:</b> ${esc(human(a.decision.action))} <span class="muted">(rule <code>${esc(a.decision.rule)}</code>)</span>`) : step("wait", "<b>Dispatch</b> waits for the explanation"));
@@ -396,8 +396,8 @@
       <div class="note-row" hidden><input maxlength="500" placeholder="Why dismiss? (goes in the audit trail)" aria-label="Dismiss note"><button type="button" data-act="dismiss" data-id="${esc(a.id)}">Dismiss</button></div>
       <p class="error-text small" hidden></p>`;
     return `<article class="alert k-${esc(a.kind)}" data-alert="${esc(a.id)}">
-      <div class="alert-top"><span class="id">${esc(a.id)}</span><span class="tool">${esc(a.equipment_id)} · ${a.flags.length} sensor${a.flags.length > 1 ? "s" : ""}</span>
-        <span class="chips">${a.severity ? `<span class="chip sev-${esc(a.severity)}">${esc(a.severity)} severity</span>` : a.kind === "sensor_fault" ? '<span class="chip">sensor fault</span>' : ""}${a.action ? `<span class="chip act-${esc(a.action)}">${esc(human(a.action))}</span>` : ""}${a.status !== "open" ? `<span class="chip st-${esc(a.status)}">${esc(a.status)}</span>` : ""}</span></div>
+      <div class="alert-top"><span class="id">${esc(a.id)}</span><span class="tool">${esc(a.equipment_id)} · ${a.flags.length} metric${a.flags.length > 1 ? "s" : ""}</span>
+        <span class="chips">${a.severity ? `<span class="chip sev-${esc(a.severity)}">${esc(a.severity)} severity</span>` : a.kind === "sensor_fault" ? '<span class="chip">monitoring fault</span>' : ""}${a.action ? `<span class="chip act-${esc(a.action)}">${esc(human(a.action))}</span>` : ""}${a.status !== "open" ? `<span class="chip st-${esc(a.status)}">${esc(a.status)}</span>` : ""}</span></div>
       <ol class="steps">${steps.join("")}</ol>
       ${body}
       ${buttons}

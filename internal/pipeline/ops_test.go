@@ -138,7 +138,7 @@ func TestExplainInputHasContext(t *testing.T) {
 	if in == nil || len(in.Sensors) != 4 || in.FlaggedCount() != 1 || len(in.History) != 5 {
 		t.Fatalf("%+v", in)
 	}
-	if !strings.Contains(in.History[0].Summary, "operators") {
+	if !strings.Contains(in.History[0].Summary, "asset version") {
 		t.Fatalf("history not newest-first: %+v", in.History[0])
 	}
 	for _, s := range in.Sensors {

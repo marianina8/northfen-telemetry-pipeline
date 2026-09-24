@@ -23,22 +23,24 @@ type Mock struct {
 func (m *Mock) Name() string { return "mock:heuristic" }
 
 var causesByType = map[string][]string{
-	"rf_power":         {"rf_delivery", "consumable_end_of_life", "sensor_or_instrumentation"},
-	"chamber_pressure": {"vacuum_or_leak", "gas_delivery", "sensor_or_instrumentation"},
-	"temperature":      {"thermal_control", "sensor_or_instrumentation"},
-	"vibration_rms":    {"mechanical_wear", "consumable_end_of_life"},
-	"particle_count":   {"contamination", "consumable_end_of_life"},
+	"frame_time":  {"driver_or_image_update", "asset_or_scene_change", "node_hardware"},
+	"temperature": {"node_hardware", "monitoring_or_telemetry"},
+	"memory":      {"memory_pressure", "asset_or_scene_change"},
+	"io_latency":  {"storage_io", "network"},
+	"error_count": {"asset_or_scene_change", "node_hardware", "license_server"},
+	"license":     {"license_server", "scheduler_or_queue"},
 }
 
 var checksByCause = map[string]string{
-	"rf_delivery":               "Check RF generator forward/reflected power logs and the match network tune positions",
-	"vacuum_or_leak":            "Run a rate-of-rise leak check and inspect the throttle valve position trend",
-	"gas_delivery":              "Compare MFC setpoints vs. actual flows on the active recipe step",
-	"thermal_control":           "Check heater/chiller loop setpoint vs. actual and thermocouple readings",
-	"mechanical_wear":           "Inspect spindle bearing and pad conditioner; compare vibration spectrum to the last PM baseline",
-	"consumable_end_of_life":    "Check consumable usage counters (pad, rings, liners) against their limits",
-	"contamination":             "Pull a particle monitor wafer and inspect the chamber for flaking",
-	"sensor_or_instrumentation": "Cross-check the sensor against a secondary gauge before touching the process",
+	"storage_io":              "Check NAS/filer latency and throughput for the pool's volume, and any snapshot or rebuild running now",
+	"node_hardware":           "Check the node's GPU/CPU temperature, fan speed and throttling flags; drain it from the pool if it's hot",
+	"driver_or_image_update":  "Compare frame times on nodes with the new driver/image against nodes without it",
+	"asset_or_scene_change":   "Check which asset or scene versions were published just before the change and diff their render stats",
+	"memory_pressure":         "Check peak memory per job against node memory, and whether jobs started swapping",
+	"license_server":          "Check license checkout waits and seats in use on the license server",
+	"network":                 "Check the pool's uplink and switch error counters between nodes and storage",
+	"scheduler_or_queue":      "Check render-manager chunking and slot limits for the pool",
+	"monitoring_or_telemetry": "Cross-check the metric against the node or service directly before touching the farm",
 }
 
 // Explain implements Model.
@@ -81,12 +83,12 @@ func (m *Mock) Explain(_ context.Context, in Input) (Explanation, error) {
 
 	var causes []string
 	switch {
-	case types["vibration_rms"] && types["temperature"]:
-		causes = []string{"mechanical_wear", "consumable_end_of_life", "thermal_control"}
-	case types["chamber_pressure"] && types["rf_power"]:
-		causes = []string{"vacuum_or_leak", "rf_delivery", "gas_delivery"}
-	case types["particle_count"] && types["chamber_pressure"]:
-		causes = []string{"contamination", "vacuum_or_leak"}
+	case types["io_latency"] && types["frame_time"]:
+		causes = []string{"storage_io", "network", "scheduler_or_queue"}
+	case types["temperature"] && types["frame_time"]:
+		causes = []string{"node_hardware", "driver_or_image_update"}
+	case types["memory"] && types["error_count"]:
+		causes = []string{"memory_pressure", "asset_or_scene_change"}
 	default:
 		for _, mv := range movers {
 			for _, c := range causesByType[mv.s.SensorType] {
@@ -135,10 +137,10 @@ func (m *Mock) Explain(_ context.Context, in Input) (Explanation, error) {
 
 	var text string
 	if correlated {
-		text = fmt.Sprintf("%s on %s are moving together, which points to %s rather than a single faulty sensor.",
+		text = fmt.Sprintf("%s on %s are moving together, which points to %s rather than a single faulty node or metric.",
 			joinNames(names), in.Equipment.Name, human(causes[0]))
 	} else if len(names) > 0 {
-		text = fmt.Sprintf("%s on %s moved on its own while the other sensors stayed normal, most consistent with %s.",
+		text = fmt.Sprintf("%s on %s moved on its own while the pool's other metrics stayed normal, most consistent with %s.",
 			names[0], in.Equipment.Name, human(causes[0]))
 	} else {
 		text = fmt.Sprintf("The flagged pattern on %s doesn't match a known signature.", in.Equipment.Name)
@@ -161,12 +163,12 @@ func (m *Mock) Explain(_ context.Context, in Input) (Explanation, error) {
 }
 
 var historyWords = map[string][]string{
-	"mechanical_wear":        {"bearing", "spindle", "conditioner"},
-	"vacuum_or_leak":         {"pressure", "foreline", "throttle", "vacuum", "leak"},
-	"contamination":          {"particle", "flaking", "clean"},
-	"rf_delivery":            {"rf", "match"},
-	"thermal_control":        {"heater", "thermocouple", "chiller"},
-	"consumable_end_of_life": {"replaced", "end of life"},
+	"storage_io":             {"nas", "filer", "snapshot", "cache", "storage"},
+	"node_hardware":          {"fan", "thermal", "gpu", "paste"},
+	"driver_or_image_update": {"driver", "image"},
+	"asset_or_scene_change":  {"asset", "publish", "texture", "scene"},
+	"license_server":         {"license"},
+	"scheduler_or_queue":     {"render manager", "chunking"},
 }
 
 func historyMentions(h []HistoryItem, cause string) bool {

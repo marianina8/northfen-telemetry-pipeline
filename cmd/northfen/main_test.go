@@ -21,7 +21,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	if err != nil || !strings.Contains(out, "1 alert(s)") || !strings.Contains(out, "PAGE_ONCALL") {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	out, _ = cli(t, dir, "", "simulate", "01")
+	out, _ = cli(t, dir, "", "simulate", "06")
 	if !strings.Contains(out, "No anomalies") || !strings.Contains(out, "No model call") {
 		t.Fatal(out)
 	}
@@ -39,7 +39,7 @@ func TestCLIEndToEnd(t *testing.T) {
 	if err != nil || !strings.Contains(out, "acknowledged") || !strings.Contains(out, "engineer:sam") {
 		t.Fatalf("%v %s", err, out)
 	}
-	hist, err := cli(t, dir, "", "history", "CMP-07", "pad_temp", "-json")
+	hist, err := cli(t, dir, "", "history", "FARM-LGT", "nas_read_latency", "-json")
 	if err != nil {
 		t.Fatal(err)
 	}

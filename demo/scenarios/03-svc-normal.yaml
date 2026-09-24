@@ -1,0 +1,8 @@
+name: svc-normal
+title: Normal night - Shared farm services
+category: baseline
+description: >
+  License server, filer and render manager all healthy. Nothing should flag.
+equipment_id: SVC-CORE
+ticks: 120
+seed: 127

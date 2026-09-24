@@ -1,12 +1,12 @@
-# Northfen Semiconductor telemetry pipeline configuration.
+# Northfen Studios render-farm telemetry pipeline configuration.
 #
 # Everything that decides behaviour lives here, not in code: detector
 # thresholds, per-sensor-type overrides, how alerts are grouped, what the
 # Bedrock "explain" step sees, and the deterministic dispatch table that turns
 # (severity, confidence) into an action.
 
-company: Northfen Semiconductor
-fab: Fab N2 (capacity expansion, lines 3-4)
+company: Northfen Studios
+site: Burbank render farm (season-2 capacity push)
 
 # ---------------------------------------------------------------- detection
 # 100% deterministic statistics. No model is involved in deciding whether a
@@ -20,18 +20,19 @@ detector:
   drift_sigma: 4.0            # |baseline - warm-up baseline| >= this many sigma -> flag (slow drift)
   clear_after: 10             # readings with no rule active before an episode closes
   stuck_count: 12             # readings in a row ...
-  stuck_tolerance_sigma: 0.01 # ... whose range is <= this * sigma -> sensor fault (stuck at value)
-  dropout_count: 3            # consecutive missing readings -> sensor fault (dropout)
+  stuck_tolerance_sigma: 0.01 # ... whose range is <= this * sigma -> monitoring fault (stuck at value)
+  dropout_count: 3            # consecutive missing readings -> monitoring fault (dropout)
   window_size: 10             # readings per scored window (every window's score is stored)
   # Per-sensor-type settings. min_sigma is a floor so a very quiet sensor
   # can't produce huge z-scores from tiny, physically meaningless wiggles.
   # Any detector key above can be overridden per type.
   sensor_types:
-    temperature:      { min_sigma: 0.05 }
-    vibration_rms:    { min_sigma: 0.005 }
-    particle_count:   { min_sigma: 1.0, spike_z: 6.0 }   # counts are bursty; demand a bigger spike
-    rf_power:         { min_sigma: 0.5 }
-    chamber_pressure: { min_sigma: 0.002 }
+    frame_time:  { min_sigma: 0.02 }
+    temperature: { min_sigma: 0.05 }
+    memory:      { min_sigma: 0.1 }
+    io_latency:  { min_sigma: 0.01 }
+    error_count: { min_sigma: 1.0, spike_z: 6.0 }   # failed-frame counts are bursty; demand a bigger spike
+    license:     { min_sigma: 0.01 }
 
 # ---------------------------------------------------------------- grouping
 alerts:
@@ -58,15 +59,15 @@ explain:
     max_tokens: 700
     temperature: 0
   cause_categories:           # the model must rank causes from this list
-    - rf_delivery               # RF generator / match network
-    - vacuum_or_leak            # pumps, seals, gauge-side leaks
-    - thermal_control           # heaters, chillers, ESC/platen temperature
-    - mechanical_wear           # bearings, spindles, pad conditioners, robots
-    - contamination             # chamber flaking, slurry, particles from parts
-    - gas_delivery              # MFCs, valves, gas-line issues
-    - consumable_end_of_life    # pads, rings, liners near their limit
-    - sensor_or_instrumentation # the sensor itself, not the process
-    - process_recipe_change     # a recipe/setpoint change, not a fault
+    - storage_io                # NAS / filer / cache latency or throughput
+    - node_hardware             # a failing GPU, fan, thermal throttling, bad memory
+    - driver_or_image_update    # GPU driver, OS or render-node image change
+    - asset_or_scene_change     # a heavier or broken asset/scene publish (render cost, not creative quality)
+    - memory_pressure           # jobs outgrowing node memory, swapping
+    - license_server            # license checkout waits or exhaustion
+    - network                   # switch / uplink problems between nodes and storage
+    - scheduler_or_queue        # render-manager config, chunking, oversubscription
+    - monitoring_or_telemetry   # the metric or its collector, not the farm itself
     - unknown
 
 # ---------------------------------------------------------------- dispatch

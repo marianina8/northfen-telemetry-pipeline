@@ -1,0 +1,10 @@
+name: lgt-normal
+title: Normal overnight render - Lighting pool
+category: baseline
+description: >
+  A normal overnight lighting render. Frame times, GPU temperature and NAS
+  latency all sit at their usual levels with their usual noise. Nothing
+  should flag - this is the false-positive check.
+equipment_id: FARM-LGT
+ticks: 120
+seed: 127

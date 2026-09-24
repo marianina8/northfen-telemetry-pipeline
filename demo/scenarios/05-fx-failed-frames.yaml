@@ -1,0 +1,15 @@
+name: fx-failed-frames
+title: Burst of failed frames - FX pool
+category: spike
+description: >
+  Failed frames on the FX pool jump from about 2 to about 18 per minute for
+  four readings at tick 70, with every other metric normal - the pattern of a
+  bad asset publish (a missing texture or cache path). Should flag
+  immediately (spike rule); higher severity.
+equipment_id: FARM-FX
+ticks: 120
+seed: 505
+sensors:
+  failed_frames:
+    patterns:
+      - { type: spike, at: 70, magnitude: 16, duration: 4 }

@@ -170,7 +170,7 @@ func TestEveryWindowIsStored(t *testing.T) {
 		t.Fatal(err)
 	}
 	ws, _ := st.ListWindows(context.Background(), telemetry.LocalSession, run.ID)
-	// ETCH-12: 4 sensors x (120 ticks / 10 per window)
+	// FARM-LGT: 4 metrics x (120 ticks / 10 per window)
 	if len(ws) != 48 {
 		t.Fatalf("%d windows stored, want 48", len(ws))
 	}

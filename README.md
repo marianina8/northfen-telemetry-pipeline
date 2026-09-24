@@ -1,31 +1,34 @@
 # northfen-telemetry-pipeline
 
-A working AI workflow demo in Go on AWS: **streaming equipment-anomaly diagnosis for a
-semiconductor fab.** All data is synthetic.
+A working AI workflow demo in Go on AWS: **streaming anomaly diagnosis for an animation/VFX
+studio's render farm.** All data is synthetic.
 
 **Live demo:** [marian.online/demos](https://marian.online/demos) (password on request) ·
 **Architecture:** [NORTHFEN-ARCHITECTURE.md](NORTHFEN-ARCHITECTURE.md)
 
 ## The prospect and the problem
 
-**Northfen Semiconductor** is a fictional ~310-person contract wafer fab partway through a
-capacity expansion: new production lines, new tooling and new operators. That's exactly when process
-drift and equipment degradation are hardest to catch and most expensive to miss (think of the
-GlobalFoundries Fab 8 ramp). Contract fabs run at high margins, they already invest heavily in
-automation, and the incumbents in this space (PTC, Siemens, GE Digital) are slow-moving.
+**Northfen Studios** is a fictional ~250-person animation and VFX studio in the middle of a
+season-2 capacity push: new render nodes, a new compositing pool, and new driver and node images
+rolling out. Every night the render farm has to turn the day's work into frames in time for
+morning dailies. Studios already pay for serious render infrastructure, and a night of lost
+frames costs a day of a whole team's schedule.
 
-A fab has hundreds of sensors per tool. **Spotting that a reading is statistically anomalous is a
-solved, cheap, deterministic problem**, and using an LLM for it would be a mistake. The
-bottleneck is *diagnosis*. When three sensors on a tool drift together, a senior process engineer
-can often tell you what's probably happening from experience. The on-call engineer at 2am
-usually can't, and has to escalate or guess. That judgment call is what this demo automates.
+Every render node, and the shared storage, license server and render manager behind it, streams
+metrics: frame time, GPU/CPU temperature, memory, storage latency, failed frames, license waits.
+**Spotting that a metric is statistically unusual is a solved, cheap, deterministic problem**, and
+using an LLM for it would be a mistake. The bottleneck is *diagnosis*. When frame times climb on
+several nodes at once, a senior render wrangler can usually tell whether it's one bad node, a
+driver roll-out, a heavy asset publish, or shared storage choking. The on-call wrangler at 2am
+often can't, and escalates or guesses. That judgment call is what this demo automates.
 
-> **AI does diagnostic synthesis over already-detected anomalies. It never decides whether
-> something is anomalous.** Detection is plain windowed statistics in Go, unit-tested without
-> Bedrock.
+> **AI does operational diagnosis over already-detected anomalies. It never decides whether
+> something is anomalous, and it never judges the work.** Detection is plain windowed statistics
+> in Go, unit-tested without Bedrock. The model diagnoses infrastructure; it is told never to
+> comment on the creative content or quality of any shot.
 
 ```
-Kinesis stream → Go consumer Lambda: rolling EWMA / z-score per sensor (state in DynamoDB)
+Kinesis stream → Go consumer Lambda: rolling EWMA / z-score per metric (state in DynamoDB)
               → window crosses a threshold → one Bedrock "explain" call (likely causes,
                 what to check first, severity, confidence)
               → fixed table: log / ticket / page on-call (SNS); uncertain → a human
@@ -39,13 +42,13 @@ that classifies it, and a router. This one is a different architecture:
 
 | | Rivergate / Amberlight (ICR) | Northfen |
 |---|---|---|
-| Input | one ticket / handoff at a time | a continuous multi-sensor stream (Kinesis) |
+| Input | one ticket / handoff at a time | a continuous multi-metric stream from the render farm (Kinesis) |
 | Who decides "is this a problem?" | the model classifies every item | **statistics**. The model is never asked |
-| When the model runs | on every item | only on windows the detector flagged. Quiet tools cost nothing |
-| Model's job | label one item | synthesize a cause across *correlated* sensors plus the tool's maintenance history |
-| State | per item | rolling per-sensor detector state, externalized in DynamoDB between stateless Lambda invocations |
+| When the model runs | on every item | only on windows the detector flagged. A quiet night costs nothing |
+| Model's job | label one item | synthesize a cause across *correlated* metrics plus the pool's recent changes and incidents |
+| State | per item | rolling per-metric detector state, externalized in DynamoDB between stateless Lambda invocations |
 | Hard parts | confidence thresholds, routing | windowing, replay-safe stream processing, grouping correlated flags into one incident, settle time before explaining |
-| Demo feel | submit one item, see the result | pick a scenario and watch ~50 s of telemetry stream, get scored and flagged live |
+| Demo feel | submit one item, see the result | pick a scenario and watch ~50 s of farm telemetry stream, get scored and flagged live |
 
 What carries over on purpose: synthetic-only data, the phased local-first build, SAM, the
 deterministic action table after the model, low confidence going to a human, the full audit
@@ -57,8 +60,8 @@ trail, and the MCP read/write split.
 make test                       # every scenario's detection outcome, the z = 3.0 boundary, replay safety, ...
 make build
 bin/northfen scenarios          # 10 synthetic scenarios and what each should do
-bin/northfen simulate 10        # correlated drift on a CMP polisher → one alert → explained → page
-bin/northfen simulate 06        # noisy but stable → nothing flagged, no model call
+bin/northfen simulate 10        # whole lighting pool slows with NAS latency → one alert → "storage" → page
+bin/northfen simulate 06        # bursty but healthy comp pool → nothing flagged, no model call
 bin/northfen simulate 07 -via-kinesis   # through the local Kinesis/SQS stand-ins into the Lambda handlers
 bin/northfen simulate 05 -live  # paced tick by tick
 bin/northfen feed
@@ -72,24 +75,26 @@ instead of the offline mock explainer.
 
 ### Scenarios (`demo/scenarios/`, outcomes in `demo/expected.json`)
 
-| # | Tool | Scenario | Expected |
+| # | Render pool | Scenario | Expected |
 |---|---|---|---|
-| 01–03 | etch, CVD, implanter | normal operation | no flag |
-| 04 | Etch Tool 12 | chamber pressure creeps up, never reaches the spec limit | drift anomaly, lower severity |
-| 05 | CVD Chamber 4 | particle burst | spike anomaly, higher severity |
-| 06 | CMP Polisher 7 | 3× the usual vibration noise, but stable | no flag (the harder false-positive test) |
-| 07 | Ion Implanter 2 | vacuum gauge frozen at a normal-looking value | sensor fault → ticket, no model call |
-| 08 | Etch Tool 12 | temperature channel goes silent for 8 readings | sensor fault → ticket, no model call |
-| 09 | CVD Chamber 4 | noise-free fixture: z = 3.000 ×3 (flags) vs 3.000 ×2 then 2.997 ×3 (doesn't) | exactly one flag |
-| 10 | CMP Polisher 7 | vibration ×2 and pad temperature drift together | ONE alert, three sensors; explanation must reference the correlation |
+| 01–03 | lighting, FX, shared services | normal night | no flag |
+| 04 | Lighting pool | node12's frame time creeps up after a GPU driver update, never reaches the alert limit | drift anomaly, lower severity |
+| 05 | FX pool | burst of failed frames after an asset publish | spike anomaly, higher severity |
+| 06 | Compositing pool | 3× the usual swing on light vs heavy shots, but stable | no flag (the harder false-positive test) |
+| 07 | Shared services | license monitor frozen at a normal-looking seat count | monitoring fault → ticket, no model call |
+| 08 | Lighting pool | node07 goes silent for 8 readings | monitoring fault (both of its metrics, one alert) → ticket, no model call |
+| 09 | FX pool | noise-free fixture: z = 3.000 ×3 (flags) vs 3.000 ×2 then 2.997 ×3 (doesn't) | exactly one flag |
+| 10 | Lighting pool | NAS latency and both nodes' frame times rise together, GPU temp flat | ONE alert, three metrics; the explanation must point at shared storage |
 
 ### Naive vs. adaptive (`compare/`)
 
-`go run ./compare` runs every scenario through fixed spec-sheet limits and through the adaptive
-detector. **Naive: 5/10 correct. Adaptive: 10/10.** The fixed limit misses the gradual drift,
-false-alarms on the noisy-but-healthy tool, can't see a stuck or silent sensor, and sees the
-three correlated sensors 17 and 51 ticks apart. See [compare/RESULTS.md](compare/RESULTS.md).
-With `-bedrock` it also checks the live model's severity against `demo/expected.json`.
+`go run ./compare` runs every scenario through fixed alert limits and through the adaptive
+detector. **Naive: 5/10 correct. Adaptive: 10/10.** The fixed limits miss the driver drift,
+false-alarm on the bursty-but-healthy compositing pool, and can't see a frozen or silent metric.
+In the storage slowdown they page about two slow nodes first and only see the storage latency ~40
+ticks later; the adaptive detector flags storage first and groups all three into one incident.
+See [compare/RESULTS.md](compare/RESULTS.md). With `-bedrock` it also checks the live model's
+severity against `demo/expected.json`.
 
 ### MCP
 

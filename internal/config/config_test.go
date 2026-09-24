@@ -26,7 +26,7 @@ func TestValidation(t *testing.T) {
 		"unknown severity":      {"when: { severity: high }", "when: { severity: urgent }"},
 		"unknown provider":      {"provider: mock", "provider: gpt"},
 		"unknown key":           {"warmup: 20", "warmup: 20\n  wamrup: 3"},
-		"bad per-type spike":    {"particle_count:   { min_sigma: 1.0, spike_z: 6.0 }", "particle_count:   { min_sigma: 1.0, spike_z: 1.0 }"},
+		"bad per-type spike":    {"error_count: { min_sigma: 1.0, spike_z: 6.0 }", "error_count: { min_sigma: 1.0, spike_z: 1.0 }"},
 	} {
 		if !strings.Contains(base, mut[0]) {
 			t.Fatalf("%s: fixture text %q not in config", name, mut[0])

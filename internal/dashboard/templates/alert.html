@@ -20,15 +20,15 @@
     <thead><tr><th>Sensor</th><th>Rule</th><th>Tick</th><th>z</th><th>Window</th></tr></thead>
     <tbody>{{range $a.Flags}}<tr><td>{{.SensorID}} <span class="muted small">{{human .SensorType}}</span></td><td>{{.Rule}}</td><td>{{.Tick}}</td><td>{{f2 .Z}}</td><td class="mono small">{{.WindowID}}</td></tr>{{end}}</tbody>
   </table>
-  {{if gt (len $a.Flags) 1}}<p class="small">{{len $a.Flags}} sensors on the same tool flagged within the grouping window, so they're treated as <b>one incident</b> with one diagnosis and one page.</p>{{end}}
+  {{if gt (len $a.Flags) 1}}<p class="small">{{len $a.Flags}} metrics on the same render pool flagged within the grouping window, so they're treated as <b>one incident</b> with one diagnosis and one page.</p>{{end}}
 </section>
 
 <section class="panel">
   <h2>2 · Explanation <span class="muted small">one bounded model call</span></h2>
   {{if eq (printf "%s" $a.Explain) "skipped"}}
-    <p><b>Skipped by design.</b> This is a sensor fault (the sensor itself stopped reporting or froze), so there's no process behaviour to diagnose. It goes straight to a ticket without a model call.</p>
+    <p><b>Skipped by design.</b> This is a monitoring fault (a metric stopped reporting or froze), so there's no farm behaviour to diagnose. It goes straight to a ticket without a model call.</p>
   {{else if eq (printf "%s" $a.Explain) "pending"}}
-    <p class="muted">Waiting for correlated sensors to settle before the one model call.</p>
+    <p class="muted">Waiting for correlated metrics to settle before the one model call.</p>
   {{else if eq (printf "%s" $a.Explain) "failed"}}
     <p><b>No explanation:</b> {{$a.ExplainErr}}. The dispatch table sends it to a human.</p>
   {{else}}{{with $a.Explanation}}

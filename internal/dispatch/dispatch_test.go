@@ -52,9 +52,9 @@ func (f *fakeSNS) Publish(_ context.Context, in *sns.PublishInput, _ ...func(*sn
 }
 
 func alert() *store.Alert {
-	return &store.Alert{ID: "NF-1", SessionID: "local", EquipmentID: "CMP-07", Kind: "anomaly",
-		Flags:       []store.SeriesFlag{{SensorID: "spindle_vib", Rule: "drift"}},
-		Explanation: &explain.Explanation{Severity: "high", Confidence: 0.8, Explanation: "Bearing wear.", RecommendedChecks: []string{"Check the bearing"}},
+	return &store.Alert{ID: "NF-1", SessionID: "local", EquipmentID: "FARM-LGT", Kind: "anomaly",
+		Flags:       []store.SeriesFlag{{SensorID: "nas_read_latency", Rule: "drift"}},
+		Explanation: &explain.Explanation{Severity: "high", Confidence: 0.8, Explanation: "Shared storage is slowing the pool.", RecommendedChecks: []string{"Check NAS latency"}},
 		Decision:    &store.Decision{Action: "page_oncall", Rule: "high-severity-pages", Reason: "severity=high"}}
 }
 
@@ -71,7 +71,7 @@ func TestPagerSink(t *testing.T) {
 	if err != nil || rec.Simulated || rec.Ref != "msg-1" || f.in == nil {
 		t.Fatalf("real page not sent: %+v %v", rec, err)
 	}
-	if got := aws.ToString(f.in.Subject); got != "[Northfen] HIGH anomaly on CMP-07" {
+	if got := aws.ToString(f.in.Subject); got != "[Northfen] HIGH anomaly on FARM-LGT" {
 		t.Fatalf("subject %q", got)
 	}
 	f.in = nil
@@ -88,7 +88,7 @@ func TestPagerSink(t *testing.T) {
 
 func TestMessageCarriesReasoning(t *testing.T) {
 	m := dispatch.NewMessage(alert(), config.ActionPageOnCall)
-	if m.Summary != "Bearing wear." || m.Rule != "high-severity-pages" || len(m.Checks) != 1 || m.Sensors[0] != "spindle_vib (drift)" {
+	if m.Summary != "Shared storage is slowing the pool." || m.Rule != "high-severity-pages" || len(m.Checks) != 1 || m.Sensors[0] != "nas_read_latency (drift)" {
 		t.Fatalf("%+v", m)
 	}
 }

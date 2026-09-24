@@ -37,7 +37,7 @@ type HistoryEntry struct {
 	Summary string `yaml:"summary" json:"summary"`
 }
 
-// Equipment is one fab tool.
+// Equipment is one render pool (the unit alerts are grouped by).
 type Equipment struct {
 	ID       string         `yaml:"id" json:"id"`
 	Name     string         `yaml:"name" json:"name"`

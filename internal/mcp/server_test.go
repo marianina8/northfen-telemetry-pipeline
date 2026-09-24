@@ -117,7 +117,7 @@ func TestWriteToolsEnabledOneByOne(t *testing.T) {
 	if !strings.Contains(audit.String(), `"mcp_write":"escalate"`) || !strings.Contains(audit.String(), `"mcp_write":"simulate"`) {
 		t.Fatalf("audit log: %s", audit.String())
 	}
-	h := tool(t, s, "get_sensor_history", map[string]any{"equipment_id": "ETCH-12", "sensor_id": "chamber_pressure"})
+	h := tool(t, s, "get_sensor_history", map[string]any{"equipment_id": "FARM-LGT", "sensor_id": "nas_read_latency"})
 	if h.Result.IsError || len(h.Result.Struct["windows"].([]any)) != 12 {
 		t.Fatalf("history: %v", h.Result.Content[0].Text[:200])
 	}

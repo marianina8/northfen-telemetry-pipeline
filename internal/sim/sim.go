@@ -223,7 +223,7 @@ func (g *sensorGen) next(t int) *float64 {
 }
 
 func (g *sensorGen) round(v float64) float64 {
-	if g.s.Type == telemetry.ParticleCount && v < 0 {
+	if telemetry.NonNegative(g.s.Type) && v < 0 {
 		v = 0
 	}
 	p := math.Pow(10, float64(g.s.Decimals))

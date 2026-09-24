@@ -149,7 +149,7 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 			"protocolVersion": v,
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      map[string]any{"name": "northfen-telemetry", "version": s.Version},
-			"instructions": "Northfen Semiconductor fab-equipment anomaly pipeline (synthetic data). Anomaly detection is " +
+			"instructions": "Northfen Studios render-farm anomaly pipeline (synthetic data). Anomaly detection is " +
 				"deterministic statistics; a model only explains windows the detector already flagged, and a fixed table " +
 				"decides log / ticket / page. Read tools are always available. Write tools (ack, escalate, simulate) are " +
 				"enabled one by one by the operator. You cannot change thresholds, un-flag a window, or choose the " +
@@ -204,8 +204,8 @@ var readOnly = map[string]any{"readOnlyHint": true}
 var tools = []tool{
 	{
 		Name: "feed", Title: "Anomaly feed",
-		Description: "The anomaly feed for this session, newest first: tool, flagged sensors, detector rules, the explanation's severity/confidence/top cause, the dispatch action, and the human status. Optionally filter by status (open, acknowledged, escalated, dismissed) or equipment.",
-		InputSchema: obj(map[string]any{"status": str("Filter by status"), "equipment_id": str("Filter by tool, e.g. CMP-07")}),
+		Description: "The anomaly feed for this session, newest first: render pool, flagged metrics, detector rules, the explanation's severity/confidence/top cause, the dispatch action, and the human status. Optionally filter by status (open, acknowledged, escalated, dismissed) or equipment.",
+		InputSchema: obj(map[string]any{"status": str("Filter by status"), "equipment_id": str("Filter by render pool, e.g. FARM-LGT")}),
 		Annotations: readOnly,
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (any, error) {
 			var a struct {
@@ -247,7 +247,7 @@ var tools = []tool{
 		Name: "get_sensor_history", Title: "Sensor history",
 		Description: "One sensor's raw readings and every scored window (mean, min/max, max |z|, rules, status) for a run. Defaults to the latest run on that tool.",
 		InputSchema: obj(map[string]any{
-			"equipment_id": str("Tool ID, e.g. ETCH-12"), "sensor_id": str("Sensor ID, e.g. chamber_pressure"), "run_id": str("Optional run ID"),
+			"equipment_id": str("Render pool ID, e.g. FARM-LGT"), "sensor_id": str("Metric ID, e.g. nas_read_latency"), "run_id": str("Optional run ID"),
 		}, "equipment_id", "sensor_id"),
 		Annotations: readOnly,
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (any, error) {
@@ -280,7 +280,7 @@ var tools = []tool{
 	},
 	{
 		Name: "list_scenarios", Title: "List scenarios",
-		Description: "The synthetic sensor-stream scenarios (normal baselines, gradual drift, spikes, noisy-but-normal, stuck and dropped-out sensors, a threshold-boundary case, correlated multi-sensor drift) and the tools they run on.",
+		Description: "The synthetic render-farm metric scenarios (normal baselines, gradual drift, spikes, noisy-but-normal, a frozen license monitor, a silent node, a threshold-boundary case, a whole-pool storage slowdown) and the render pools they run on.",
 		InputSchema: obj(map[string]any{}),
 		Annotations: readOnly,
 		run: func(_ context.Context, s *Server, _ json.RawMessage) (any, error) {
@@ -334,7 +334,7 @@ var tools = []tool{
 	{
 		Name: "simulate", Title: "Run a synthetic scenario", write: true,
 		Description: "Inject a named synthetic sensor-stream scenario into this session and score it end to end (detect, explain flagged windows, dispatch). Writes synthetic data, so it is a write tool.",
-		InputSchema: obj(map[string]any{"scenario": str("Scenario name or number, e.g. 10 or cmp07-correlated-drift")}, "scenario"),
+		InputSchema: obj(map[string]any{"scenario": str("Scenario name or number, e.g. 10 or lgt-storage-slowdown")}, "scenario"),
 		Annotations: map[string]any{"readOnlyHint": false, "destructiveHint": false, "openWorldHint": false},
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (any, error) {
 			var a struct{ Scenario string }

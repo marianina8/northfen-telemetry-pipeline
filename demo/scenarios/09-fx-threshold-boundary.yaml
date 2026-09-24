@@ -1,0 +1,22 @@
+name: fx-threshold-boundary
+title: Right at the threshold - FX pool
+category: threshold_boundary
+description: >
+  A noise-free, hand-built stream that pins the exact z-score cutoff. Every
+  metric alternates exactly one sigma above and below its base, so after
+  warm-up the baseline and sigma are exact. node21's CPU temperature then
+  reads z = 3.000 three times in a row: that is ON the threshold and flags
+  (sustained rule, >= 3.0). node21's memory reads z = 3.000 only twice, then
+  z = 2.997 three times: neither flags. Expect exactly one alert, on
+  sim_node21_cpu_temp.
+equipment_id: FARM-FX
+ticks: 80
+seed: 909
+noise_model: alternate
+sensors:
+  sim_node21_cpu_temp:
+    patterns:
+      - { type: values, start: 20, values: [69.5, 69.5, 69.5] }
+  sim_node21_mem_used:
+    patterns:
+      - { type: values, start: 20, values: [189.0, 189.0, 180.0, 188.99, 188.99, 188.99] }

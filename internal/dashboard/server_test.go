@@ -177,7 +177,7 @@ func TestRunLimitAndOneAtATime(t *testing.T) {
 func TestLocalNoPassword(t *testing.T) {
 	h, _, st := setup(t, "")
 	c := &client{h: h}
-	if w := c.do("GET", "/demos/northfen/", "", ""); w.Code != 200 || !strings.Contains(w.Body.String(), "Equipment anomaly console") {
+	if w := c.do("GET", "/demos/northfen/", "", ""); w.Code != 200 || !strings.Contains(w.Body.String(), "Render farm console") {
 		t.Fatalf("console: %d", w.Code)
 	}
 	if w := c.do("POST", "/demos/northfen/api/runs", `{"scenario":"nope"}`, ""); w.Code != 400 {

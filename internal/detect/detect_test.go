@@ -279,9 +279,9 @@ func TestStateSurvivesJSONRoundTrips(t *testing.T) {
 
 func TestPerSensorTypeOverrides(t *testing.T) {
 	c := config.Default()
-	pc := c.Detector.For("particle_count")
+	pc := c.Detector.For("error_count")
 	if pc.SpikeZ != 6 || pc.MinSigma != 1 {
-		t.Fatalf("particle_count override not applied: %+v", pc)
+		t.Fatalf("error_count override not applied: %+v", pc)
 	}
 	tmp := c.Detector.For("temperature")
 	if tmp.SpikeZ != c.Detector.SpikeZ || tmp.SustainedZ != 3 {
